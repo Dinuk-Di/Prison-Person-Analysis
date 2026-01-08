@@ -1,5 +1,5 @@
 from flask import Flask
-from flask_cors import CORS  # <--- 1. Import this
+from flask_cors import CORS
 from app.model import db
 from app.routes.inmate_routes import inmate_bp
 from app.routes.admin_routes import admin_bp
