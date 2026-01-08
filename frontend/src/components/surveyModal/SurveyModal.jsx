@@ -130,8 +130,7 @@ export default function SurveyModal({ isOpen, onClose, inmateId = 1 }) {
     try {
       // Prepare the data in the required format
       const surveyData = {
-        inmate_id: inmateId,
-        username: username.trim(),
+        Username: username.trim(),
         answers: finalAnswers
       };
 

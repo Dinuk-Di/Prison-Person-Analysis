@@ -29,12 +29,13 @@ def register_inmate():
 @inmate_bp.route('/submit_survey', methods=['POST'])
 def submit_survey():
     data = request.json
-    inmate_id = data.get('inmate_id')
-    answers = data.get('answers') # List of {"question": "...", "answer": "..."}
-    
-    if not Inmate.query.get(inmate_id):
+    username = data.get('Username')
+    inmate = Inmate.query.filter_by(name=username).first()
+    inmate_id = inmate.id if inmate else None
+    if not inmate_id:
         return jsonify({"error": "Inmate not found"}), 404
-
+    answers = data.get('answers')
+    
     for item in answers:
         new_answer = SurveyAnswer(
             inmate_id=inmate_id,
