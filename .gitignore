@@ -1,0 +1,13 @@
+Training/
+
+# Ignore environment variable files
+*.env
+*venv/
+*.zip
+__pycache__/
+*.pyc
+
+*.pdf
+*.db
+*.pt
+*.sqlite3
