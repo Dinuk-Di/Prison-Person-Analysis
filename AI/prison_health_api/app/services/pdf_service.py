@@ -2,7 +2,6 @@ import os
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import Chroma
-# Updated Import for Hugging Face
 from langchain_huggingface import HuggingFaceEmbeddings 
 from dotenv import load_dotenv
 
@@ -14,6 +13,7 @@ def get_embeddings():
     """
     Returns a locally running Hugging Face embedding model.
     'all-MiniLM-L6-v2' is a standard, efficient model for RAG.
+    Embedding Models should be chosen based on the vector DB's capabilities.
     """
     return HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
 

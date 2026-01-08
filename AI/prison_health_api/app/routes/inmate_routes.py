@@ -52,7 +52,11 @@ def detect_emotion():
         return jsonify({"error": "No video file provided"}), 400
         
     video = request.files['video']
-    inmate_id = request.form.get('inmate_id')
+    username = request.form.get('Username')
+    inmate = Inmate.query.filter_by(name=username).first()
+    inmate_id = inmate.id if inmate else None
+    if not inmate_id:
+        return jsonify({"error": "Inmate not found"}), 404
     
     # Save temp file
     temp_path = os.path.join("uploads", video.filename)

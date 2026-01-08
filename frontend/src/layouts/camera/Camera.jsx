@@ -77,7 +77,7 @@ export default function Camera() {
     try {
       const formData = new FormData();
       // Send file as array format
-      formData.append('file[]', uploadedFile);
+      formData.append('file', uploadedFile);
 
       await axiosInstance.post('http://127.0.0.1:5010/api/admin/upload_medical_record', formData, {
         headers: {
