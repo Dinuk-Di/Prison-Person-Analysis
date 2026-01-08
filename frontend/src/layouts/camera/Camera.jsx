@@ -220,7 +220,7 @@ export default function Camera() {
     try {
       const response = await axiosInstance.post(
         "http://127.0.0.1:5010/api/admin/analyze_inmate",
-        { username: analysisUsername.trim() }
+        { Username: analysisUsername.trim() }
       );
       setAnalysisData(response.data);
       toast.success('Analysis completed!');
