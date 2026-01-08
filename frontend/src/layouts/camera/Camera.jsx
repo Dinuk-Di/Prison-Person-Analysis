@@ -1,6 +1,10 @@
-import React, { useEffect } from 'react';
-import { Camera as CameraIcon, Loader, AlertCircle, Play, Square } from 'lucide-react';
+import React, { useEffect, useState, useRef } from 'react';
+import { Camera as CameraIcon, Loader, AlertCircle, Play, Square, Upload, CheckCircle, Video, Send, BarChart3 } from 'lucide-react';
 import { useCamera } from '../../context/CameraContext';
+import Button from '../../components/button/Button';
+import Input from '../../components/input/Input';
+import axiosInstance from '../../services/axiosInstance';
+import toast from 'react-hot-toast';
 
 export default function Camera() {
   const {
@@ -17,12 +21,215 @@ export default function Camera() {
     handleDeviceChange,
   } = useCamera();
 
+  const [uploadedFile, setUploadedFile] = useState(null);
+  const [isUploading, setIsUploading] = useState(false);
+  
+  // Video recording states
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordedVideo, setRecordedVideo] = useState(null);
+  const [videoBlob, setVideoBlob] = useState(null);
+  const [showVideoForm, setShowVideoForm] = useState(false);
+  const [videoUsername, setVideoUsername] = useState('');
+  const [isSendingVideo, setIsSendingVideo] = useState(false);
+  const mediaRecorderRef = useRef(null);
+  const recordedChunksRef = useRef([]);
+  
+  // Analysis states
+  const [analysisUsername, setAnalysisUsername] = useState('');
+  const [analysisData, setAnalysisData] = useState(null);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+
   // Ensure video displays when returning to this page
   useEffect(() => {
     if (videoRef.current && streamRef && streamRef.current) {
       videoRef.current.srcObject = streamRef.current;
     }
   }, [videoRef, streamRef, isCameraActive]);
+
+  // Cleanup media recorder on unmount
+  useEffect(() => {
+    return () => {
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+        mediaRecorderRef.current.stop();
+      }
+    };
+  }, []);
+
+  const handleFileChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      if (file.type !== 'application/pdf') {
+        toast.error('Please upload a PDF file');
+        return;
+      }
+      setUploadedFile(file);
+    }
+  };
+
+  const handleFileUpload = async () => {
+    if (!uploadedFile) {
+      toast.error('Please select a PDF file to upload');
+      return;
+    }
+
+    setIsUploading(true);
+
+    try {
+      const formData = new FormData();
+      // Send file as array format
+      formData.append('file[]', uploadedFile);
+
+      await axiosInstance.post('http://127.0.0.1:5010/api/admin/upload_medical_record', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+
+      toast.success('Medical record uploaded successfully!');
+      setUploadedFile(null);
+      // Reset file input
+      const fileInput = document.getElementById('pdf-upload');
+      if (fileInput) {
+        fileInput.value = '';
+      }
+    } catch (error) {
+      console.error('Error uploading file:', error);
+      const msg = error?.response?.data?.message || 'Failed to upload file. Please try again.';
+      toast.error(msg);
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleStartRecording = async () => {
+    if (!isCameraActive || !streamRef.current) {
+      toast.error('Please start the camera first');
+      return;
+    }
+
+    try {
+      recordedChunksRef.current = [];
+      
+      // Try different mime types for browser compatibility
+      let mimeType = 'video/webm;codecs=vp9';
+      if (!MediaRecorder.isTypeSupported(mimeType)) {
+        mimeType = 'video/webm;codecs=vp8';
+        if (!MediaRecorder.isTypeSupported(mimeType)) {
+          mimeType = 'video/webm';
+          if (!MediaRecorder.isTypeSupported(mimeType)) {
+            mimeType = '';
+          }
+        }
+      }
+      
+      const options = mimeType ? { mimeType } : {};
+      const mediaRecorder = new MediaRecorder(streamRef.current, options);
+      
+      mediaRecorderRef.current = mediaRecorder;
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data && event.data.size > 0) {
+          recordedChunksRef.current.push(event.data);
+        }
+      };
+
+      mediaRecorder.onstop = () => {
+        const blob = new Blob(recordedChunksRef.current, { type: mimeType || 'video/webm' });
+        setVideoBlob(blob);
+        const videoURL = URL.createObjectURL(blob);
+        setRecordedVideo(videoURL);
+        setShowVideoForm(true);
+        setIsRecording(false);
+      };
+
+      mediaRecorder.onerror = (event) => {
+        console.error('MediaRecorder error:', event);
+        toast.error('Recording error occurred');
+        setIsRecording(false);
+      };
+
+      mediaRecorder.start();
+      setIsRecording(true);
+      toast.success('Recording started...');
+
+      // Auto-stop after 5 seconds
+      setTimeout(() => {
+        if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+          mediaRecorderRef.current.stop();
+        }
+      }, 5000);
+    } catch (error) {
+      console.error('Error starting recording:', error);
+      toast.error('Failed to start recording. Please ensure your browser supports video recording.');
+      setIsRecording(false);
+    }
+  };
+
+  const handleStopRecording = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+      mediaRecorderRef.current.stop();
+    }
+  };
+
+  const handleSendVideo = async () => {
+    if (!videoUsername.trim()) {
+      toast.error('Please enter a username');
+      return;
+    }
+
+    if (!videoBlob) {
+      toast.error('No video recorded');
+      return;
+    }
+
+    setIsSendingVideo(true);
+
+    try {
+      const formData = new FormData();
+      formData.append('Username', videoUsername.trim());
+      formData.append('video', videoBlob, 'video.webm');
+
+      await axiosInstance.post('http://127.0.0.1:5010/api/inmate/detect_emotion', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+
+      toast.success('Video sent successfully!');
+      setShowVideoForm(false);
+      setRecordedVideo(null);
+      setVideoBlob(null);
+      setVideoUsername('');
+    } catch (error) {
+      console.error('Error sending video:', error);
+      const msg = error?.response?.data?.message || 'Failed to send video. Please try again.';
+      toast.error(msg);
+    } finally {
+      setIsSendingVideo(false);
+    }
+  };
+
+  const handleAnalyze = async () => {
+    if (!analysisUsername.trim()) {
+      toast.error('Please enter a username');
+      return;
+    }
+
+    setIsAnalyzing(true);
+
+    try {
+      const response = await axiosInstance.get(`http://127.0.0.1:5010/api/admin/analyze_inmate/${analysisUsername.trim()}`);
+      setAnalysisData(response.data);
+      toast.success('Analysis completed!');
+    } catch (error) {
+      console.error('Error analyzing:', error);
+      const msg = error?.response?.data?.message || 'Failed to analyze inmate. Please try again.';
+      toast.error(msg);
+      setAnalysisData(null);
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
 
   return (
     <div className="h-full bg-gradient-to-br from-slate-50 to-slate-100">
@@ -131,13 +338,24 @@ export default function Camera() {
                   </button>
                 )}
 
-                <button
-                  onClick={captureScreenshot}
-                  disabled={!isCameraActive}
-                  className="w-full px-4 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white font-semibold rounded-lg hover:shadow-lg transition-all disabled:opacity-60 disabled:cursor-not-allowed"
-                >
-                  📷 Capture Image
-                </button>
+                {!isRecording ? (
+                  <button
+                    onClick={handleStartRecording}
+                    disabled={!isCameraActive}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white font-semibold rounded-lg hover:shadow-lg transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+                  >
+                    <Video className="w-4 h-4" />
+                    Capture Video
+                  </button>
+                ) : (
+                  <button
+                    onClick={handleStopRecording}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-red-600 to-red-700 text-white font-semibold rounded-lg hover:shadow-lg transition-all animate-pulse"
+                  >
+                    <Square className="w-4 h-4" />
+                    Recording... (5s)
+                  </button>
+                )}
               </div>
 
               {/* Status Info */}
@@ -167,6 +385,133 @@ export default function Camera() {
                 </div>
               </div>
 
+              {/* File Upload Section */}
+              <div className="pt-4 border-t border-slate-200">
+                <label className="block text-sm font-semibold text-slate-700 mb-3">
+                  Upload Medical Record (PDF)
+                </label>
+                <div className="border-2 border-dashed border-slate-300 rounded-lg p-4 text-center hover:border-blue-500 transition-colors mb-3">
+                  <input
+                    type="file"
+                    id="pdf-upload"
+                    onChange={handleFileChange}
+                    className="hidden"
+                    accept="application/pdf"
+                  />
+                  <label
+                    htmlFor="pdf-upload"
+                    className="cursor-pointer flex flex-col items-center"
+                  >
+                    {uploadedFile ? (
+                      <div className="space-y-2">
+                        <CheckCircle className="w-8 h-8 text-green-600 mx-auto" />
+                        <p className="text-xs font-medium text-slate-900">
+                          {uploadedFile.name}
+                        </p>
+                        <p className="text-xs text-slate-500">
+                          Click to change file
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        <Upload className="w-8 h-8 text-slate-400 mx-auto" />
+                        <p className="text-xs font-medium text-slate-700">
+                          Click to upload PDF
+                        </p>
+                        <p className="text-xs text-slate-500">
+                          Medical record file
+                        </p>
+                      </div>
+                    )}
+                  </label>
+                </div>
+                <Button
+                  variant="primary"
+                  onClick={handleFileUpload}
+                  disabled={!uploadedFile || isUploading}
+                  loading={isUploading}
+                  className="w-full"
+                  size="sm"
+                >
+                  <Upload className="w-4 h-4" />
+                  Upload File
+                </Button>
+              </div>
+
+              {/* Video Upload Form */}
+              {showVideoForm && recordedVideo && (
+                <div className="pt-4 border-t border-slate-200">
+                  <label className="block text-sm font-semibold text-slate-700 mb-3">
+                    Send Video for Emotion Detection
+                  </label>
+                  <video
+                    src={recordedVideo}
+                    controls
+                    className="w-full rounded-lg mb-3 max-h-48"
+                  />
+                  <Input
+                    type="text"
+                    label="Username"
+                    placeholder="Enter username"
+                    value={videoUsername}
+                    onChange={(e) => setVideoUsername(e.target.value)}
+                    className="mb-3"
+                  />
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setShowVideoForm(false);
+                        setRecordedVideo(null);
+                        setVideoBlob(null);
+                        setVideoUsername('');
+                      }}
+                      className="flex-1"
+                      size="sm"
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      variant="primary"
+                      onClick={handleSendVideo}
+                      disabled={!videoUsername.trim() || isSendingVideo}
+                      loading={isSendingVideo}
+                      className="flex-1"
+                      size="sm"
+                    >
+                      <Send className="w-4 h-4" />
+                      Send Video
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {/* Analysis Section */}
+              <div className="pt-4 border-t border-slate-200">
+                <label className="block text-sm font-semibold text-slate-700 mb-3">
+                  Analyze Inmate
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="Enter username"
+                    value={analysisUsername}
+                    onChange={(e) => setAnalysisUsername(e.target.value)}
+                    className="flex-1 px-3 py-2 border-2 border-slate-300 rounded-lg focus:border-blue-500 focus:outline-none text-sm"
+                  />
+                  <Button
+                    variant="primary"
+                    onClick={handleAnalyze}
+                    disabled={!analysisUsername.trim() || isAnalyzing}
+                    loading={isAnalyzing}
+                    size="sm"
+                  >
+                    <BarChart3 className="w-4 h-4" />
+                    Analyze
+                  </Button>
+                </div>
+              </div>
+
               {/* Info Box */}
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                 <p className="text-xs text-blue-700">
@@ -176,6 +521,77 @@ export default function Camera() {
             </div>
           </div>
         </div>
+
+        {/* Analysis Results Card */}
+        {analysisData && analysisData.analysis && (
+          <div className="mt-6 bg-white rounded-lg shadow-lg border border-slate-200 p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-2xl font-bold text-slate-900">Analysis Results</h2>
+              <button
+                onClick={() => setAnalysisData(null)}
+                className="text-slate-400 hover:text-slate-600 transition-colors"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              {/* Risk Level */}
+              <div className="flex items-center gap-3">
+                <span className="text-sm font-semibold text-slate-700">Risk Level:</span>
+                <span className={`px-3 py-1 rounded-full text-sm font-bold ${
+                  analysisData.analysis.risk_level === 'High' ? 'bg-red-100 text-red-700' :
+                  analysisData.analysis.risk_level === 'Medium' ? 'bg-yellow-100 text-yellow-700' :
+                  'bg-green-100 text-green-700'
+                }`}>
+                  {analysisData.analysis.risk_level}
+                </span>
+                {analysisData.analysis.urgent_alert && (
+                  <span className="px-3 py-1 bg-red-500 text-white rounded-full text-xs font-bold animate-pulse">
+                    URGENT
+                  </span>
+                )}
+              </div>
+
+              {/* Suspected Conditions */}
+              {analysisData.analysis.suspected_conditions && analysisData.analysis.suspected_conditions.length > 0 && (
+                <div>
+                  <span className="text-sm font-semibold text-slate-700 block mb-2">Suspected Conditions:</span>
+                  <div className="flex flex-wrap gap-2">
+                    {analysisData.analysis.suspected_conditions.map((condition, index) => (
+                      <span key={index} className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm">
+                        {condition}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Reasoning */}
+              <div>
+                <span className="text-sm font-semibold text-slate-700 block mb-2">Reasoning:</span>
+                <p className="text-sm text-slate-600 bg-slate-50 p-3 rounded-lg">
+                  {analysisData.analysis.reasoning}
+                </p>
+              </div>
+
+              {/* Recommended Actions */}
+              {analysisData.analysis.recommended_actions && analysisData.analysis.recommended_actions.length > 0 && (
+                <div>
+                  <span className="text-sm font-semibold text-slate-700 block mb-2">Recommended Actions:</span>
+                  <ul className="space-y-2">
+                    {analysisData.analysis.recommended_actions.map((action, index) => (
+                      <li key={index} className="flex items-start gap-2 text-sm text-slate-600">
+                        <span className="text-blue-600 mt-1">•</span>
+                        <span>{action}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

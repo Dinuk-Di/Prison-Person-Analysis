@@ -55,16 +55,18 @@ export default function SignIn() {
     setLoading(true);
 
     try {
-      navigate("/");
-      // const response = await login(formData);
+      // Default credentials
+      const DEFAULT_USERNAME = "admin";
+      const DEFAULT_PASSWORD = "admin123";
 
-      // if (response.token) {
-      //   localStorage.setItem("token", response.token);
-      //   toast.success("Login successful! 🚀");
-      //   navigate("/");
-      // } else {
-      //   toast.error("Login failed. Please try again.");
-      // }
+      if (formData.username === DEFAULT_USERNAME && formData.password === DEFAULT_PASSWORD) {
+        // Store token in localStorage
+        localStorage.setItem("token", "default-auth-token");
+        toast.success("Login successful! 🚀");
+        navigate("/");
+      } else {
+        toast.error("Invalid username or password. Use: admin / admin123");
+      }
     } catch (error) {
       const msg = error?.response?.data?.message || "Something went wrong.";
       toast.error(msg);
@@ -135,6 +137,18 @@ export default function SignIn() {
                 Sign In
               </Button>
             </form>
+
+            <div className="mt-6 text-center">
+              <p className="text-sm text-slate-600">
+                Don't have an account?{" "}
+                <a
+                  href="/register"
+                  className="text-blue-600 hover:text-blue-700 font-medium transition-colors"
+                >
+                  Register here
+                </a>
+              </p>
+            </div>
           </div>
 
           {/* Footer */}
