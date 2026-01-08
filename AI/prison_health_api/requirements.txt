@@ -10,3 +10,7 @@ chromadb
 pypdf
 python-dotenv
 langchain-text-splitters
+pydantic
+langchain-google-genai 
+langchain-chroma 
+google-generativeai

@@ -1,16 +1,26 @@
 import os
-from langchain_community.vectorstores import Chroma
+from typing import List
+from langchain_chroma import Chroma
 from langchain_core.prompts import PromptTemplate
+from langchain_core.output_parsers import JsonOutputParser
+from pydantic import BaseModel, Field
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_huggingface import HuggingFaceEmbeddings
 from dotenv import load_dotenv
 
 load_dotenv()
 
-# Setup Gemini for the Answer Generation (LLM)
-# Note: We still use Gemini for generating the text, just not for embeddings
+# --- 1. Define the Structure (Schema) ---
+class HealthProfile(BaseModel):
+    risk_level: str = Field(description="Risk level: Low, Medium, or High")
+    suspected_conditions: List[str] = Field(description="List of potential mental health conditions identified")
+    recommended_actions: List[str] = Field(description="Actionable steps for prison staff")
+    urgent_alert: bool = Field(description="True if immediate medical intervention is required, else False")
+    reasoning: str = Field(description="A brief summary explaining why this risk level was assigned")
+
+# Setup Gemini
 llm = ChatGoogleGenerativeAI(
-    model="gemini-pro",
+    model="gemini-2.0-flash",
     temperature=0.3,
     google_api_key=os.getenv("GOOGLE_API_KEY")
 )
@@ -19,31 +29,25 @@ PERSIST_DIRECTORY = "./chroma_db"
 
 def generate_health_profile(inmate_data, emotion_history, survey_summary):
     try:
-        # 2. Use Hugging Face Embeddings (MUST match what you used in pdf_service.py)
+        # Setup Embeddings & DB
         embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
-        
-        # Connect to existing DB
-        vector_db = Chroma(
-            persist_directory=PERSIST_DIRECTORY, 
-            embedding_function=embeddings
-        )
-        
-        # Create Retriever
+        vector_db = Chroma(persist_directory=PERSIST_DIRECTORY, embedding_function=embeddings)
         retriever = vector_db.as_retriever(search_kwargs={"k": 3})
         
-        # 3. FIX: Change 'get_relevant_documents' to 'invoke'
+        # Retrieve Context
         query = f"treatment guidelines for {survey_summary} and mental health interventions"
         relevant_docs = retriever.invoke(query)
-        
-        # Combine retrieved context
         context_text = "\n\n".join([doc.page_content for doc in relevant_docs])
         
-        # Create the Prompt
+        # --- 2. Setup the Parser ---
+        parser = JsonOutputParser(pydantic_object=HealthProfile)
+
+        # --- 3. Update Prompt with Format Instructions ---
         template = """
-        You are an AI Prison Health Assistant. Analyze the inmate's profile based on the following data:
+        You are an AI Prison Health Assistant. Analyze the inmate's profile based on the data provided.
         
         INMATE INFO:
-        Name: {name} (ID: {id})
+        Name: {name}
         Age: {age}
         Crime: {crime}
         
@@ -53,40 +57,46 @@ def generate_health_profile(inmate_data, emotion_history, survey_summary):
         SELF-REPORTED SYMPTOMS (Survey):
         {survey}
         
-        MEDICAL GUIDELINES (Retrieved from Knowledge Base):
+        MEDICAL GUIDELINES (Retrieved Context):
         {context}
         
         TASK:
-        Generate a JSON health profile with:
-        1. "risk_level" (Low/Medium/High)
-        2. "suspected_conditions" (List of potential issues like Depression, Anxiety, etc.)
-        3. "recommended_actions" (Specific steps for prison staff based on the guidelines)
-        4. "urgent_alert" (Boolean: True if immediate intervention is needed)
-        
-        Return ONLY valid JSON.
+        Analyze the inputs and generate a health profile.
+        {format_instructions}
         """
         
         prompt = PromptTemplate(
             template=template,
-            input_variables=["name", "id", "age", "crime", "emotions", "survey", "context"]
+            input_variables=["name", "age", "crime", "emotions", "survey", "context"],
+            partial_variables={"format_instructions": parser.get_format_instructions()}
         )
         
-        chain = prompt | llm
+        # --- 4. Chain with Parser ---
+        chain = prompt | llm | parser
         
-        response = chain.invoke({
-            "name": inmate_data.first_name + " " + inmate_data.last_name,
-            "id": inmate_data.id,
-            "age": inmate_data.age,
-            "crime": inmate_data.crime_details,
+        # Handle missing fields safely
+        inmate_name = getattr(inmate_data, 'name', 'Unknown Inmate')
+        
+        # Execute Chain
+        response_dict = chain.invoke({
+            "name": inmate_name,
+            "age": getattr(inmate_data, 'age', 'N/A'),
+            "crime": getattr(inmate_data, 'crime_details', 'N/A'),
             "emotions": emotion_history,
             "survey": survey_summary,
             "context": context_text
         })
         
-        # Clean up response to ensure it's just JSON
-        content = response.content.replace("```json", "").replace("```", "").strip()
-        return content
+        # The 'response_dict' is now a real Python dictionary, not a string!
+        return response_dict
 
     except Exception as e:
         print(f"Error generating profile: {e}")
-        return {"error": str(e)}
+        # Return a safe fallback structure on error
+        return {
+            "risk_level": "Unknown",
+            "suspected_conditions": [],
+            "recommended_actions": ["System Error - Manual Review Required"],
+            "urgent_alert": False,
+            "reasoning": str(e)
+        }
