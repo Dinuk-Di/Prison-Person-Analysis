@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { Camera as CameraIcon, Loader, AlertCircle, Play, Square, Upload, CheckCircle, Video, Send, BarChart3 } from 'lucide-react';
+import { Camera as CameraIcon, Loader, AlertCircle, Play, Square, Upload, CheckCircle, Video, Send, BarChart3, User } from 'lucide-react';
 import { useCamera } from '../../context/CameraContext';
 import Button from '../../components/button/Button';
 import Input from '../../components/input/Input';
@@ -218,7 +218,10 @@ export default function Camera() {
     setIsAnalyzing(true);
 
     try {
-      const response = await axiosInstance.get(`http://127.0.0.1:5010/api/admin/analyze_inmate/${analysisUsername.trim()}`);
+      const response = await axiosInstance.post(
+        "http://127.0.0.1:5010/api/admin/analyze_inmate",
+        { username: analysisUsername.trim() }
+      );
       setAnalysisData(response.data);
       toast.success('Analysis completed!');
     } catch (error) {
@@ -438,80 +441,6 @@ export default function Camera() {
                 </Button>
               </div>
 
-              {/* Video Upload Form */}
-              {showVideoForm && recordedVideo && (
-                <div className="pt-4 border-t border-slate-200">
-                  <label className="block text-sm font-semibold text-slate-700 mb-3">
-                    Send Video for Emotion Detection
-                  </label>
-                  <video
-                    src={recordedVideo}
-                    controls
-                    className="w-full rounded-lg mb-3 max-h-48"
-                  />
-                  <Input
-                    type="text"
-                    label="Username"
-                    placeholder="Enter username"
-                    value={videoUsername}
-                    onChange={(e) => setVideoUsername(e.target.value)}
-                    className="mb-3"
-                  />
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      onClick={() => {
-                        setShowVideoForm(false);
-                        setRecordedVideo(null);
-                        setVideoBlob(null);
-                        setVideoUsername('');
-                      }}
-                      className="flex-1"
-                      size="sm"
-                    >
-                      Cancel
-                    </Button>
-                    <Button
-                      variant="primary"
-                      onClick={handleSendVideo}
-                      disabled={!videoUsername.trim() || isSendingVideo}
-                      loading={isSendingVideo}
-                      className="flex-1"
-                      size="sm"
-                    >
-                      <Send className="w-4 h-4" />
-                      Send Video
-                    </Button>
-                  </div>
-                </div>
-              )}
-
-              {/* Analysis Section */}
-              <div className="pt-4 border-t border-slate-200">
-                <label className="block text-sm font-semibold text-slate-700 mb-3">
-                  Analyze Inmate
-                </label>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    placeholder="Enter username"
-                    value={analysisUsername}
-                    onChange={(e) => setAnalysisUsername(e.target.value)}
-                    className="flex-1 px-3 py-2 border-2 border-slate-300 rounded-lg focus:border-blue-500 focus:outline-none text-sm"
-                  />
-                  <Button
-                    variant="primary"
-                    onClick={handleAnalyze}
-                    disabled={!analysisUsername.trim() || isAnalyzing}
-                    loading={isAnalyzing}
-                    size="sm"
-                  >
-                    <BarChart3 className="w-4 h-4" />
-                    Analyze
-                  </Button>
-                </div>
-              </div>
-
               {/* Info Box */}
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                 <p className="text-xs text-blue-700">
@@ -522,73 +451,265 @@ export default function Camera() {
           </div>
         </div>
 
-        {/* Analysis Results Card */}
-        {analysisData && analysisData.analysis && (
+        {/* Video Upload Form - Prominent Section */}
+        {showVideoForm && recordedVideo && (
           <div className="mt-6 bg-white rounded-lg shadow-lg border border-slate-200 p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-2xl font-bold text-slate-900">Analysis Results</h2>
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-3">
+                <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg p-3">
+                  <Video className="w-6 h-6 text-blue-600" />
+                </div>
+                <div>
+                  <h2 className="text-2xl font-bold text-slate-900">Send Video for Emotion Detection</h2>
+                  <p className="text-sm text-slate-600">Review your recorded video and submit for analysis</p>
+                </div>
+              </div>
               <button
-                onClick={() => setAnalysisData(null)}
-                className="text-slate-400 hover:text-slate-600 transition-colors"
+                onClick={() => {
+                  setShowVideoForm(false);
+                  setRecordedVideo(null);
+                  setVideoBlob(null);
+                  setVideoUsername('');
+                }}
+                className="text-slate-400 hover:text-slate-600 transition-colors p-2 hover:bg-slate-100 rounded-lg"
               >
                 ✕
               </button>
             </div>
 
-            <div className="space-y-4">
-              {/* Risk Level */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Video Preview */}
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-3">
+                  Video Preview
+                </label>
+                <div className="bg-slate-900 rounded-lg overflow-hidden">
+                  <video
+                    src={recordedVideo}
+                    controls
+                    className="w-full h-auto"
+                  />
+                </div>
+              </div>
+
+              {/* Upload Form */}
+              <div className="flex flex-col justify-center">
+                <div className="space-y-4">
+                  <Input
+                    type="text"
+                    label="Username"
+                    placeholder="Enter username for emotion detection"
+                    value={videoUsername}
+                    onChange={(e) => setVideoUsername(e.target.value)}
+                    required
+                  />
+                  
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <p className="text-xs text-blue-700 mb-2">
+                      <span className="font-semibold">Note:</span> This video will be analyzed for emotional state detection.
+                    </p>
+                    <p className="text-xs text-blue-600">
+                      Make sure the username matches the registered inmate.
+                    </p>
+                  </div>
+
+                  <div className="flex gap-3 pt-2">
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setShowVideoForm(false);
+                        setRecordedVideo(null);
+                        setVideoBlob(null);
+                        setVideoUsername('');
+                      }}
+                      className="flex-1"
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      variant="primary"
+                      onClick={handleSendVideo}
+                      disabled={!videoUsername.trim() || isSendingVideo}
+                      loading={isSendingVideo}
+                      className="flex-1"
+                    >
+                      <Send className="w-4 h-4" />
+                      Send Video
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Analyze Inmate Section - Prominent */}
+        <div className="mt-6 bg-white rounded-lg shadow-lg border border-slate-200 p-6">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="bg-gradient-to-br from-purple-50 to-indigo-50 rounded-lg p-3">
+              <BarChart3 className="w-6 h-6 text-purple-600" />
+            </div>
+            <div>
+              <h2 className="text-2xl font-bold text-slate-900">Analyze Inmate</h2>
+              <p className="text-sm text-slate-600">Get comprehensive mental health analysis for an inmate</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Input Section */}
+            <div className="lg:col-span-2">
+              <Input
+                type="text"
+                label="Inmate Username"
+                placeholder="Enter the username of the inmate to analyze"
+                value={analysisUsername}
+                onChange={(e) => setAnalysisUsername(e.target.value)}
+                icon={User}
+                required
+              />
+              
+              <div className="mt-4">
+                <Button
+                  variant="primary"
+                  onClick={handleAnalyze}
+                  disabled={!analysisUsername.trim() || isAnalyzing}
+                  loading={isAnalyzing}
+                  className="w-full"
+                  size="lg"
+                >
+                  <BarChart3 className="w-5 h-5" />
+                  {isAnalyzing ? 'Analyzing...' : 'Start Analysis'}
+                </Button>
+              </div>
+            </div>
+
+            {/* Info Card */}
+            <div className="lg:col-span-1">
+              <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg p-5 h-full border border-blue-200">
+                <div className="space-y-3">
+                  <div className="flex items-start gap-2">
+                    <CheckCircle className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
+                    <div>
+                      <p className="text-sm font-semibold text-slate-900">Comprehensive Analysis</p>
+                      <p className="text-xs text-slate-600">Risk assessment and recommendations</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <CheckCircle className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
+                    <div>
+                      <p className="text-sm font-semibold text-slate-900">Mental Health Insights</p>
+                      <p className="text-xs text-slate-600">Suspected conditions and reasoning</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <CheckCircle className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
+                    <div>
+                      <p className="text-sm font-semibold text-slate-900">Actionable Recommendations</p>
+                      <p className="text-xs text-slate-600">Tailored intervention strategies</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Analysis Results Card */}
+        {analysisData && analysisData.analysis && (
+          <div className="mt-6 bg-white rounded-lg shadow-lg border border-slate-200 p-6">
+            <div className="flex items-center justify-between mb-6">
               <div className="flex items-center gap-3">
-                <span className="text-sm font-semibold text-slate-700">Risk Level:</span>
-                <span className={`px-3 py-1 rounded-full text-sm font-bold ${
-                  analysisData.analysis.risk_level === 'High' ? 'bg-red-100 text-red-700' :
-                  analysisData.analysis.risk_level === 'Medium' ? 'bg-yellow-100 text-yellow-700' :
-                  'bg-green-100 text-green-700'
-                }`}>
-                  {analysisData.analysis.risk_level}
-                </span>
-                {analysisData.analysis.urgent_alert && (
-                  <span className="px-3 py-1 bg-red-500 text-white rounded-full text-xs font-bold animate-pulse">
-                    URGENT
-                  </span>
+                <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-lg p-3">
+                  <BarChart3 className="w-6 h-6 text-green-600" />
+                </div>
+                <div>
+                  <h2 className="text-2xl font-bold text-slate-900">Analysis Results</h2>
+                  <p className="text-sm text-slate-600">Comprehensive mental health assessment</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setAnalysisData(null)}
+                className="text-slate-400 hover:text-slate-600 transition-colors p-2 hover:bg-slate-100 rounded-lg"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* Risk Level & Conditions */}
+              <div className="lg:col-span-1 space-y-4">
+                {/* Risk Level Card */}
+                <div className="bg-gradient-to-br from-slate-50 to-slate-100 rounded-lg p-4 border border-slate-200">
+                  <p className="text-xs font-semibold text-slate-600 uppercase tracking-wider mb-3">Risk Assessment</p>
+                  <div className="flex items-center gap-3 mb-3">
+                    <span className={`px-4 py-2 rounded-lg text-base font-bold ${
+                      analysisData.analysis.risk_level === 'High' ? 'bg-red-100 text-red-700 border-2 border-red-300' :
+                      analysisData.analysis.risk_level === 'Medium' ? 'bg-yellow-100 text-yellow-700 border-2 border-yellow-300' :
+                      'bg-green-100 text-green-700 border-2 border-green-300'
+                    }`}>
+                      {analysisData.analysis.risk_level}
+                    </span>
+                    {analysisData.analysis.urgent_alert && (
+                      <span className="px-3 py-1 bg-red-500 text-white rounded-full text-xs font-bold animate-pulse">
+                        URGENT
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-slate-600">
+                    {analysisData.analysis.risk_level === 'High' && 'Immediate attention required'}
+                    {analysisData.analysis.risk_level === 'Medium' && 'Monitor closely and provide support'}
+                    {analysisData.analysis.risk_level === 'Low' && 'Continue regular monitoring'}
+                  </p>
+                </div>
+
+                {/* Suspected Conditions */}
+                {analysisData.analysis.suspected_conditions && analysisData.analysis.suspected_conditions.length > 0 && (
+                  <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg p-4 border border-blue-200">
+                    <p className="text-xs font-semibold text-slate-700 uppercase tracking-wider mb-3">Suspected Conditions</p>
+                    <div className="flex flex-wrap gap-2">
+                      {analysisData.analysis.suspected_conditions.map((condition, index) => (
+                        <span key={index} className="px-3 py-1.5 bg-white text-blue-700 rounded-lg text-sm font-medium border border-blue-200 shadow-sm">
+                          {condition}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
                 )}
               </div>
 
-              {/* Suspected Conditions */}
-              {analysisData.analysis.suspected_conditions && analysisData.analysis.suspected_conditions.length > 0 && (
-                <div>
-                  <span className="text-sm font-semibold text-slate-700 block mb-2">Suspected Conditions:</span>
-                  <div className="flex flex-wrap gap-2">
-                    {analysisData.analysis.suspected_conditions.map((condition, index) => (
-                      <span key={index} className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm">
-                        {condition}
-                      </span>
-                    ))}
+              {/* Main Content */}
+              <div className="lg:col-span-2 space-y-4">
+                {/* Reasoning */}
+                <div className="bg-slate-50 rounded-lg p-5 border border-slate-200">
+                  <p className="text-sm font-semibold text-slate-900 mb-3 flex items-center gap-2">
+                    <span className="w-2 h-2 bg-blue-600 rounded-full"></span>
+                    Analysis Reasoning
+                  </p>
+                  <p className="text-sm text-slate-700 leading-relaxed">
+                    {analysisData.analysis.reasoning}
+                  </p>
+                </div>
+
+                {/* Recommended Actions */}
+                {analysisData.analysis.recommended_actions && analysisData.analysis.recommended_actions.length > 0 && (
+                  <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-lg p-5 border border-green-200">
+                    <p className="text-sm font-semibold text-slate-900 mb-4 flex items-center gap-2">
+                      <CheckCircle className="w-5 h-5 text-green-600" />
+                      Recommended Actions
+                    </p>
+                    <ul className="space-y-3">
+                      {analysisData.analysis.recommended_actions.map((action, index) => (
+                        <li key={index} className="flex items-start gap-3">
+                          <span className="flex-shrink-0 w-6 h-6 bg-white rounded-full flex items-center justify-center text-green-600 font-bold text-xs border-2 border-green-300 mt-0.5">
+                            {index + 1}
+                          </span>
+                          <span className="text-sm text-slate-700 leading-relaxed pt-0.5">{action}</span>
+                        </li>
+                      ))}
+                    </ul>
                   </div>
-                </div>
-              )}
-
-              {/* Reasoning */}
-              <div>
-                <span className="text-sm font-semibold text-slate-700 block mb-2">Reasoning:</span>
-                <p className="text-sm text-slate-600 bg-slate-50 p-3 rounded-lg">
-                  {analysisData.analysis.reasoning}
-                </p>
+                )}
               </div>
-
-              {/* Recommended Actions */}
-              {analysisData.analysis.recommended_actions && analysisData.analysis.recommended_actions.length > 0 && (
-                <div>
-                  <span className="text-sm font-semibold text-slate-700 block mb-2">Recommended Actions:</span>
-                  <ul className="space-y-2">
-                    {analysisData.analysis.recommended_actions.map((action, index) => (
-                      <li key={index} className="flex items-start gap-2 text-sm text-slate-600">
-                        <span className="text-blue-600 mt-1">•</span>
-                        <span>{action}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
             </div>
           </div>
         )}
