@@ -23,7 +23,6 @@ llm = ChatOpenAI(
     api_key=os.getenv("OPENAI_API_KEY")
 )
 
-
 structured_llm = llm.with_structured_output(HealthProfile)
 
 PERSIST_DIRECTORY = "./chroma_db"

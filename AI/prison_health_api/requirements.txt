@@ -14,3 +14,6 @@ pydantic
 langchain-google-genai 
 langchain-chroma 
 google-generativeai
+langchain_huggingface
+langchain_openai
+sentence-transformers

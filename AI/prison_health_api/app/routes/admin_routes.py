@@ -30,18 +30,30 @@ def upload_pdf():
     return jsonify({"message": f"Successfully processed: {', '.join(saved_files)}"}), 200
 
 
-@admin_bp.route('/analyze_inmate/<int:inmate_id>', methods=['GET'])
-def analyze_inmate(inmate_id):
-    inmate = Inmate.query.get_or_404(inmate_id)
+@admin_bp.route('/analyze_inmate', methods=['POST'])
+def analyze_inmate():
+    data = request.json
+    username = data.get('Username')
+    if username:
+        inmate = Inmate.query.filter_by(name=username).first()
+        if inmate:
+            target_inmate_id = inmate.id
+        else:
+            return jsonify({"error": "Inmate not found"}), 404
+    else:
+        return jsonify({"error": "Username is required"}), 400
+
+    # 4. Fetch the inmate object securely
+    inmate = Inmate.query.get_or_404(target_inmate_id)
     
     # Fetch recent data from SQL
-    recent_emotions = EmotionLog.query.filter_by(inmate_id=inmate_id).order_by(EmotionLog.timestamp.desc()).limit(5).all()
+    recent_emotions = EmotionLog.query.filter_by(inmate_id=target_inmate_id).order_by(EmotionLog.timestamp.desc()).limit(5).all()
     emotion_str = ", ".join([e.predicted_emotion for e in recent_emotions])
     
-    recent_answers = SurveyAnswer.query.filter_by(inmate_id=inmate_id).limit(10).all()
+    recent_answers = SurveyAnswer.query.filter_by(inmate_id=target_inmate_id).limit(10).all()
     survey_summary = "; ".join([f"Q: {a.question_text} A: {a.answer_text}" for a in recent_answers])
     
-    # Call Gemini RAG
+    # Call RAG Service
     analysis_json = generate_health_profile(inmate, emotion_str, survey_summary)
     
     return jsonify({"analysis": analysis_json})
