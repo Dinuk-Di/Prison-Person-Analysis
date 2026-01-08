@@ -2,7 +2,7 @@ import { useState } from 'react';
 import Modal from '../modal/Modal';
 import Input from '../input/Input';
 import Button from '../button/Button';
-import { CheckCircle, ArrowRight, ArrowLeft } from 'lucide-react';
+import { CheckCircle, ArrowRight, ArrowLeft, User } from 'lucide-react';
 import axiosInstance from '../../services/axiosInstance';
 import toast from 'react-hot-toast';
 
@@ -20,9 +20,10 @@ const QUESTIONS = [
 ];
 
 export default function SurveyModal({ isOpen, onClose, inmateId = 1 }) {
-  const [currentStep, setCurrentStep] = useState(0); // 0-9 for questions
+  const [currentStep, setCurrentStep] = useState(0); // 0-9 for questions, 10 for username
   const [answers, setAnswers] = useState([]);
   const [currentAnswer, setCurrentAnswer] = useState('');
+  const [username, setUsername] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleNext = () => {
@@ -52,7 +53,7 @@ export default function SurveyModal({ isOpen, onClose, inmateId = 1 }) {
         toast.error('Please provide an answer before proceeding');
       }
     } else if (currentStep === 9) {
-      // Last question - save answer
+      // Last question - save answer and move to username step
       if (currentAnswer.trim()) {
         const questionData = {
           question: QUESTIONS[currentStep],
@@ -61,7 +62,9 @@ export default function SurveyModal({ isOpen, onClose, inmateId = 1 }) {
         const newAnswers = [...answers];
         newAnswers[currentStep] = questionData;
         setAnswers(newAnswers);
-        // Don't move to next step, stay on last question to show submit button
+        // Move to username step (step 10)
+        setCurrentStep(10);
+        setCurrentAnswer('');
       } else {
         toast.error('Please provide an answer before proceeding');
       }
@@ -70,6 +73,18 @@ export default function SurveyModal({ isOpen, onClose, inmateId = 1 }) {
 
   const handlePrevious = () => {
     if (currentStep > 0) {
+      // If on username step, just go back without saving
+      if (currentStep === 10) {
+        setCurrentStep(9);
+        // Restore last question answer if available
+        if (answers[9]) {
+          setCurrentAnswer(answers[9].answer);
+        } else {
+          setCurrentAnswer('');
+        }
+        return;
+      }
+      
       // Save current answer before going back
       if (currentAnswer.trim()) {
         const questionData = {
@@ -97,23 +112,14 @@ export default function SurveyModal({ isOpen, onClose, inmateId = 1 }) {
   };
 
   const handleSubmit = async () => {
-    // Save current answer if on last question
-    if (currentAnswer.trim() && currentStep === 9) {
-      const questionData = {
-        question: QUESTIONS[currentStep],
-        answer: currentAnswer.trim()
-      };
-      const newAnswers = [...answers];
-      newAnswers[currentStep] = questionData;
-      setAnswers(newAnswers);
+    // Validate username
+    if (!username.trim()) {
+      toast.error('Please enter your username before submitting');
+      return;
     }
 
     // Ensure we have all 10 answers
     let finalAnswers = [...answers];
-    if (currentStep === 9 && currentAnswer.trim()) {
-      finalAnswers[9] = { question: QUESTIONS[9], answer: currentAnswer.trim() };
-    }
-
     if (finalAnswers.length !== 10) {
       toast.error('Please answer all questions before submitting');
       return;
@@ -125,6 +131,7 @@ export default function SurveyModal({ isOpen, onClose, inmateId = 1 }) {
       // Prepare the data in the required format
       const surveyData = {
         inmate_id: inmateId,
+        username: username.trim(),
         answers: finalAnswers
       };
 
@@ -147,11 +154,14 @@ export default function SurveyModal({ isOpen, onClose, inmateId = 1 }) {
     setCurrentStep(0);
     setAnswers([]);
     setCurrentAnswer('');
+    setUsername('');
     onClose();
   };
 
+  const isUsernameStep = currentStep === 10;
   const isLastQuestion = currentStep === 9;
   const currentQuestionNumber = currentStep + 1;
+  const totalSteps = 11; // 10 questions + 1 username step
 
   return (
     <Modal
@@ -166,68 +176,101 @@ export default function SurveyModal({ isOpen, onClose, inmateId = 1 }) {
           <div className="flex-1">
             <div className="flex items-center justify-between text-sm text-slate-600 mb-2">
               <span>Progress</span>
-              <span>{currentQuestionNumber}/10</span>
+              <span>{currentQuestionNumber}/{totalSteps}</span>
             </div>
             <div className="w-full bg-slate-200 rounded-full h-2">
               <div
                 className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-                style={{ width: `${((currentStep + 1) / 10) * 100}%` }}
+                style={{ width: `${((currentStep + 1) / totalSteps) * 100}%` }}
               />
             </div>
           </div>
         </div>
 
-        {/* Question Step */}
+        {/* Question Step or Username Step */}
         <div className="space-y-6">
-          <div>
-            <h3 className="text-lg font-semibold text-slate-900 mb-4">
-              Question {currentQuestionNumber}
-            </h3>
-            <p className="text-base text-slate-700 mb-6">
-              {QUESTIONS[currentStep]}
-            </p>
-          </div>
+          {isUsernameStep ? (
+            <>
+              <div>
+                <h3 className="text-lg font-semibold text-slate-900 mb-4">
+                  Almost Done!
+                </h3>
+                <p className="text-base text-slate-700 mb-6">
+                  Please enter your username to complete the survey.
+                </p>
+              </div>
 
-          <Input
-            type="text"
-            label="Your Answer"
-            placeholder="Type your answer here..."
-            value={currentAnswer}
-            onChange={(e) => setCurrentAnswer(e.target.value)}
-            required
-          />
+              <Input
+                type="text"
+                label="Username"
+                placeholder="Enter your username"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                icon={User}
+                required
+              />
 
-          <div className="flex items-center justify-between pt-4">
-            <Button
-              variant="outline"
-              onClick={handlePrevious}
-              disabled={currentStep === 0}
-            >
-              <ArrowLeft className="w-4 h-4" />
-              Previous
-            </Button>
+              <div className="flex items-center justify-between pt-4">
+                <Button
+                  variant="outline"
+                  onClick={handlePrevious}
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                  Previous
+                </Button>
 
-            {isLastQuestion ? (
-              <Button
-                variant="primary"
-                onClick={handleSubmit}
-                disabled={!currentAnswer.trim() || isSubmitting}
-                loading={isSubmitting}
-              >
-                <CheckCircle className="w-4 h-4" />
-                Submit
-              </Button>
-            ) : (
-              <Button
-                variant="primary"
-                onClick={handleNext}
-                disabled={!currentAnswer.trim()}
-              >
-                Next
-                <ArrowRight className="w-4 h-4" />
-              </Button>
-            )}
-          </div>
+                <Button
+                  variant="primary"
+                  onClick={handleSubmit}
+                  disabled={!username.trim() || isSubmitting}
+                  loading={isSubmitting}
+                >
+                  <CheckCircle className="w-4 h-4" />
+                  Submit
+                </Button>
+              </div>
+            </>
+          ) : (
+            <>
+              <div>
+                <h3 className="text-lg font-semibold text-slate-900 mb-4">
+                  Question {currentQuestionNumber}
+                </h3>
+                <p className="text-base text-slate-700 mb-6">
+                  {QUESTIONS[currentStep]}
+                </p>
+              </div>
+
+              <Input
+                type="text"
+                label="Your Answer"
+                placeholder="Type your answer here..."
+                value={currentAnswer}
+                onChange={(e) => setCurrentAnswer(e.target.value)}
+                required
+              />
+
+              <div className="flex items-center justify-between pt-4">
+                <Button
+                  variant="outline"
+                  onClick={handlePrevious}
+                  disabled={currentStep === 0}
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                  Previous
+                </Button>
+
+                <Button
+                  variant="primary"
+                  onClick={handleNext}
+                  disabled={!currentAnswer.trim()}
+                >
+                  Next
+                  <ArrowRight className="w-4 h-4" />
+                </Button>
+              </div>
+            </>
+          )}
         </div>
       </div>
     </Modal>
