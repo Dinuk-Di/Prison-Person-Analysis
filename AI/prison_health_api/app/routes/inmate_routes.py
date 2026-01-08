@@ -10,6 +10,22 @@ inmate_bp = Blueprint('inmate', __name__)
 def get_questions():
     return jsonify({"questions": MEDICAL_QUESTIONS})
 
+@inmate_bp.route('/register', methods=['POST'])
+def register_inmate():
+    data = request.json
+    # incremental inmate id
+    inmate_id = max([i.id for i in Inmate.query.all()]) + 1 if Inmate.query.all() else 1
+    name = data.get('name')
+    age = data.get('age')
+    gender = data.get('gender')
+    if Inmate.query.get(inmate_id):
+        return jsonify({"error": "Inmate ID already exists"}), 400
+    new_inmate = Inmate(id=inmate_id, name=name, age=age, gender=gender)
+    db.session.add(new_inmate)
+    db.session.commit()
+    return jsonify({"message": "Inmate registered successfully"}), 201
+
+
 @inmate_bp.route('/submit_survey', methods=['POST'])
 def submit_survey():
     data = request.json

@@ -1,65 +1,92 @@
 import os
-from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_community.vectorstores import Chroma
 from langchain_core.prompts import PromptTemplate
-from app.services.pdf_service import get_embeddings, PERSIST_DIRECTORY # Import shared config
+from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_huggingface import HuggingFaceEmbeddings
+from dotenv import load_dotenv
 
-GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
+load_dotenv()
 
-def generate_health_profile(inmate_data, recent_emotions, survey_summary):
-    # 1. Initialize Embeddings (Must match the one used in pdf_service)
-    embeddings = get_embeddings()
-    
-    # 2. Load the existing Vector DB
-    vector_db = Chroma(persist_directory=PERSIST_DIRECTORY, embedding_function=embeddings)
-    
-    # 3. Setup Retriever (Search for top 3 relevant doc chunks)
-    retriever = vector_db.as_retriever(search_kwargs={"k": 3})
-    
-    # 4. Setup Gemini LLM
-    llm = ChatGoogleGenerativeAI(model="gemini-pro", google_api_key=GOOGLE_API_KEY, temperature=0.3)
-    
-    # 5. Retrieve Context based on the inmate's survey summary
-    # We search the medical records for symptoms mentioned in the survey
-    relevant_docs = retriever.get_relevant_documents(f"treatment guidelines for {survey_summary}")
-    context_text = "\n".join([doc.page_content for doc in relevant_docs])
-    
-    # 6. Define the Prompt
-    template = """
-    You are an AI assistant for a Prison Management System.
-    
-    User Context:
-    - Name: {name}
-    - Age: {age}
-    - Gender: {gender}
-    - Recent Dominant Emotions (Video Analysis): {emotions}
-    - Self-Reported Survey Summary: {survey}
-    
-    Relevant Medical Guidelines/Records (from Vector DB):
-    {context}
-    
-    Based on the above, provide a structured JSON response with the following keys:
-    1. "Current_Situation": Analysis of their mental state.
-    2. "Health_Profile": Risk level (Low/Medium/High) and observations.
-    3. "Recommended_Actions": Specific rehabilitation steps or counselor interventions.
-    
-    Response (JSON only):
-    """
-    
-    prompt = PromptTemplate(
-        template=template,
-        input_variables=["context", "name", "age", "gender", "emotions", "survey"]
-    )
-    
-    # 7. Generate Response
-    final_prompt = prompt.format(
-        context=context_text,
-        name=inmate_data.name,
-        age=inmate_data.age,
-        gender=inmate_data.gender,
-        emotions=recent_emotions,
-        survey=survey_summary
-    )
-    
-    response = llm.invoke(final_prompt)
-    return response.content
+# Setup Gemini for the Answer Generation (LLM)
+# Note: We still use Gemini for generating the text, just not for embeddings
+llm = ChatGoogleGenerativeAI(
+    model="gemini-pro",
+    temperature=0.3,
+    google_api_key=os.getenv("GOOGLE_API_KEY")
+)
+
+PERSIST_DIRECTORY = "./chroma_db"
+
+def generate_health_profile(inmate_data, emotion_history, survey_summary):
+    try:
+        # 2. Use Hugging Face Embeddings (MUST match what you used in pdf_service.py)
+        embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
+        
+        # Connect to existing DB
+        vector_db = Chroma(
+            persist_directory=PERSIST_DIRECTORY, 
+            embedding_function=embeddings
+        )
+        
+        # Create Retriever
+        retriever = vector_db.as_retriever(search_kwargs={"k": 3})
+        
+        # 3. FIX: Change 'get_relevant_documents' to 'invoke'
+        query = f"treatment guidelines for {survey_summary} and mental health interventions"
+        relevant_docs = retriever.invoke(query)
+        
+        # Combine retrieved context
+        context_text = "\n\n".join([doc.page_content for doc in relevant_docs])
+        
+        # Create the Prompt
+        template = """
+        You are an AI Prison Health Assistant. Analyze the inmate's profile based on the following data:
+        
+        INMATE INFO:
+        Name: {name} (ID: {id})
+        Age: {age}
+        Crime: {crime}
+        
+        RECENT EMOTIONS (Video Analysis):
+        {emotions}
+        
+        SELF-REPORTED SYMPTOMS (Survey):
+        {survey}
+        
+        MEDICAL GUIDELINES (Retrieved from Knowledge Base):
+        {context}
+        
+        TASK:
+        Generate a JSON health profile with:
+        1. "risk_level" (Low/Medium/High)
+        2. "suspected_conditions" (List of potential issues like Depression, Anxiety, etc.)
+        3. "recommended_actions" (Specific steps for prison staff based on the guidelines)
+        4. "urgent_alert" (Boolean: True if immediate intervention is needed)
+        
+        Return ONLY valid JSON.
+        """
+        
+        prompt = PromptTemplate(
+            template=template,
+            input_variables=["name", "id", "age", "crime", "emotions", "survey", "context"]
+        )
+        
+        chain = prompt | llm
+        
+        response = chain.invoke({
+            "name": inmate_data.first_name + " " + inmate_data.last_name,
+            "id": inmate_data.id,
+            "age": inmate_data.age,
+            "crime": inmate_data.crime_details,
+            "emotions": emotion_history,
+            "survey": survey_summary,
+            "context": context_text
+        })
+        
+        # Clean up response to ensure it's just JSON
+        content = response.content.replace("```json", "").replace("```", "").strip()
+        return content
+
+    except Exception as e:
+        print(f"Error generating profile: {e}")
+        return {"error": str(e)}
