@@ -29,7 +29,6 @@ PERSIST_DIRECTORY = "./chroma_db"
 
 def generate_health_profile(inmate_data, emotion_history, survey_summary):
     try:
-        
         embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
         vector_db = Chroma(persist_directory=PERSIST_DIRECTORY, embedding_function=embeddings)
         retriever = vector_db.as_retriever(search_kwargs={"k": 3})
