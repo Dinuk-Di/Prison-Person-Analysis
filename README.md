@@ -48,7 +48,7 @@ DOC["📄 Uploaded PDFs / Prescriptions"]:::frontend
             BEST[("Custom YOLO <br> 9-class Emotion")]:::model
             W2V[("Wav2Vec2 Int8 <br> Audio Quantized")]:::model
             GLM[("Ollama <br> glm-ocr:latest")]:::model
-            GENAI[("Google GenAI <br> Gemini Pro")]:::model
+            GENAI[("OpenAI <br> GPT4.o")]:::model
         end
 
         %% Databases
@@ -81,20 +81,21 @@ DOC["📄 Uploaded PDFs / Prescriptions"]:::frontend
 ### Core AI Pipelines
 
 1. **Initial Evaluation Pipeline:**
+
    - Captures a live snapshot.
    - **Gender Classification:** Uses HuggingFace's `prithivMLmods/Realistic-Gender-Classification` image classification pipeline.
    - **Facial Emotion Pipeline:** Uses a two-staged approach (Object Detection -> Classification). First, `yolo11n.pt` localizes and crops the human face/body. Second, a custom `best_new.pt` YOLO model categorizes the crop into 9 specialized mental states.
-
 2. **Document OCR Pipeline:**
+
    - Doctors upload PDF reports and handwritten/printed image prescriptions.
    - The images are sent to a locally hosted **Ollama** instance and processed by the `glm-ocr:latest` model, seamlessly converting documents into digitized strings.
-
 3. **Voice Stress & Questionnaire Pipeline:**
+
    - Inmates answer a 10-step psychological survey.
    - Audio is recorded dynamically and sent to the backend.
    - Using a custom dynamically quantized PyTorch model (`quantized_emotion_model.pth` using `Wav2Vec2ForSequenceClassification`), the system identifies stress markers or emotional intent from the raw audio waveform.
-
 4. **Retrospective Health Analysis (RAG Engine):**
+
    - The collective dataset (Visual Emotion, Voice analysis, OCR text, PDF History, Question Answers) is synthesized.
    - The data is sent via `langchain` securely to the Gemini/Google GenAI LLM.
    - The LLM parses the entire mental states alongside physical history to formulate a robust medical summary which is cached into a local SQLite database to eliminate redundant token costs during historical review.
@@ -105,14 +106,14 @@ DOC["📄 Uploaded PDFs / Prescriptions"]:::frontend
 
 This system utilizes a highly specialized ensemble of state-of-the-art models targeting varying multi-modal tasks:
 
-| Purpose                           | Model Reference                                 | Underlying Architecture             | Description                                                                                                                                                                                                                                                                             |
-| :-------------------------------- | :---------------------------------------------- | :---------------------------------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Gender Detection**              | `prithivMLmods/Realistic-Gender-Classification` | Vision Transformer (ViT)            | An image classification architecture pulled from the HuggingFace Hub. It partitions images into patches mapping to latent vectors for highly accurate binary gender interpolation.                                                                                                      |
-| **Human Localization**            | `yolo11n.pt`                                    | Ultralytics YOLOv11 (Nano)          | Functions as a pre-processing sentinel. Employs cross-stage partial networks (CSPNet) optimized for real-time bounds detection. It is explicitly configured exclusively to return `Class 0` (Person) to tightly crop human bodies out of cluttered frames.                              |
-| **Facial Affect Recognition**     | `best_new.pt`                                   | Custom YOLO Classification          | Fine-tuned object-classification weights loaded strictly for cropped facial inputs. It evaluates the human crop and maps it dynamically into 9 discrete emotions (_Angry, Boring, Disgust, Fear, Happy, Neutral, Sad, Stress, Surprise_).                                               |
-| **Optical Character Recognition** | `glm-ocr:latest`                                | General Language Model (Vision)     | An optimized localized LLM served heavily through Ollama. Rather than using traditional heuristics (like Tesseract), this multimodal LLM deciphers handwriting based on contextual semantic priors.                                                                                     |
+| Purpose                                 | Model Reference                                   | Underlying Architecture               | Description                                                                                                                                                                                                                                                                                       |
+| :-------------------------------------- | :------------------------------------------------ | :------------------------------------ | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Gender Detection**              | `prithivMLmods/Realistic-Gender-Classification` | Vision Transformer (ViT)              | An image classification architecture pulled from the HuggingFace Hub. It partitions images into patches mapping to latent vectors for highly accurate binary gender interpolation.                                                                                                                |
+| **Human Localization**            | `yolo11n.pt`                                    | Ultralytics YOLOv11 (Nano)            | Functions as a pre-processing sentinel. Employs cross-stage partial networks (CSPNet) optimized for real-time bounds detection. It is explicitly configured exclusively to return `Class 0` (Person) to tightly crop human bodies out of cluttered frames.                                      |
+| **Facial Affect Recognition**     | `best_new.pt`                                   | Custom YOLO Classification            | Fine-tuned object-classification weights loaded strictly for cropped facial inputs. It evaluates the human crop and maps it dynamically into 9 discrete emotions (_Angry, Boring, Disgust, Fear, Happy, Neutral, Sad, Stress, Surprise_).                                                       |
+| **Optical Character Recognition** | `glm-ocr:latest`                                | General Language Model (Vision)       | An optimized localized LLM served heavily through Ollama. Rather than using traditional heuristics (like Tesseract), this multimodal LLM deciphers handwriting based on contextual semantic priors.                                                                                               |
 | **Voice Stress Analysis**         | `quantized_emotion_model.pth`                   | `Wav2Vec2ForSequenceClassification` | Consumes$16kHz$ sliced WAV waveforms. Built on Facebook's Wav2Vec 2.0 architecture (using 1D CNN feature extractors wrapped by Transformer layers). To achieve rapid CPU inference times, the internal linear weights are **dynamically quantized** into INT8 (`torch.qint8`) matrices. |
-| **Retrospective Diagnostics**     | Google GenAI / Gemini Pro                       | MoE / Decoder Transformers          | Connected via LangChain context pipelines, this massive generalistic LLM ingests JSON timelines and vector-embedded (ChromaDB) PDF knowledge to synthesize a finalized, deterministic medical review, which is subsequently hardware-cached via SQLite.                                 |
+| **Retrospective Diagnostics**     | OpenAI/ GPT4.o                                    | MoE / Decoder Transformers            | Connected via LangChain context pipelines, this massive generalistic LLM ingests JSON timelines and vector-embedded (ChromaDB) PDF knowledge to synthesize a finalized, deterministic medical review, which is subsequently hardware-cached via SQLite.                                           |
 
 ---
 
