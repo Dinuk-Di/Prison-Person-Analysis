@@ -1,36 +1,31 @@
 from ultralytics import YOLO
 import cv2
 import collections
+import os
+import numpy as np
 
-# 1. Define the Mapping
-EMOTION_MAP = {
-    'angry': 'anger',
-    'anger': 'anger',
-    'disgust': 'disgust',
-    'fear': 'fear',
-    'happy': 'happiness',
-    'happiness': 'happiness',
-    'neutral': 'neutral',
-    'sad': 'sadness',
-    'sadness': 'sadness',
-    'surprise': 'surprise'
-}
+# 1. Define the Mapping for best_new.pt
+EMOTION_CLASS_NAMES = ['Angry', 'Boring', 'Disgust', 'Fear', 'Happy', 'Neutral', 'Sad', 'Stress', 'Suprise']
 
-# Load Model
+# Load Models
 try:
-    model = YOLO("app/models/best.pt") 
-    print("YOLO model loaded successfully.")
-    print(f"Model recognizes classes: {model.names}") 
+    person_model = YOLO("yolo11n.pt")
+    # To reduce output 
+    print("YOLOv11n person model loaded successfully.")
+    
+    emotion_model = YOLO("app/models/best_new.pt") 
+    print("YOLO best_new.pt emotion model loaded successfully.")
 except Exception as e:
-    print(f"Warning: YOLO model not found. Using placeholder. Error: {e}")
-    model = None
+    print(f"Warning: YOLO models not found. Using placeholder. Error: {e}")
+    person_model = None
+    emotion_model = None
 
 def analyze_video_emotions(video_path):
     """
-    Analyzes a video clip using YOLO Classification or Detection.
+    Analyzes a video clip using YOLO Detection -> Emotion Classification pipeline.
     """
-    if not model:
-        return "neutral", 0.0
+    if not person_model or not emotion_model:
+        return "Neutral", 0.0
 
     cap = cv2.VideoCapture(video_path)
     emotions_list = []
@@ -42,32 +37,46 @@ def analyze_video_emotions(video_path):
         if not ret:
             break
         
-        # Process every 5th frame to speed up (optional but recommended)
         frame_count += 1            
-        # Run inference
-        results = model(frame, verbose=False)
         
-        for result in results:
-            # --- CASE A: CLASSIFICATION MODEL (Your Case) ---
-            if hasattr(result, 'probs') and result.probs is not None:
-                # Get the class with the highest probability
-                class_id = result.probs.top1
-                conf = result.probs.top1conf.item() # Convert tensor to float
-                raw_label = model.names[class_id].lower()
+        # 1. Detect person
+        person_results = person_model(frame, classes=[0], verbose=False) # class 0 is person
+        
+        for p_result in person_results:
+            boxes = p_result.boxes
+            if len(boxes) == 0:
+                continue
                 
-                # Map and store
-                mapped_emotion = EMOTION_MAP.get(raw_label, 'neutral')
-                print(f"Detected emotion: {mapped_emotion} with confidence {conf}")
-                emotions_list.append((mapped_emotion, conf))
+            # Take the most confident person box
+            best_box = max(boxes, key=lambda b: b.conf[0].item())
+            x1, y1, x2, y2 = map(int, best_box.xyxy[0].tolist())
+            
+            # Crop frame
+            person_crop = frame[max(0, y1):min(frame.shape[0], y2), max(0, x1):min(frame.shape[1], x2)]
+            if person_crop.size == 0:
+                continue
+                
+            # 2. Run emotion classification on crop
+            e_results = emotion_model(person_crop, verbose=False)
+            
+            for e_res in e_results:
+                if hasattr(e_res, 'probs') and e_res.probs is not None:
+                    class_id = e_res.probs.top1
+                    conf = e_res.probs.top1conf.item()
+                    raw_label = emotion_model.names[class_id].capitalize()
+                    
+                    if raw_label in EMOTION_CLASS_NAMES:
+                        print(f"Detected emotion: {raw_label} with confidence {conf}")
+                        emotions_list.append((raw_label, conf))
     cap.release()
 
     if not emotions_list:
-        return "neutral", 0.0
+        return "Neutral", 0.0
 
     # Get most common emotion
     emotion_counts = collections.Counter([e[0] for e in emotions_list])
     if not emotion_counts:
-        return "neutral", 0.0
+        return "Neutral", 0.0
         
     dominant_emotion = emotion_counts.most_common(1)[0][0]
     
@@ -77,3 +86,39 @@ def analyze_video_emotions(video_path):
     avg_conf = total_conf / count if count > 0 else 0.0
     
     return dominant_emotion, avg_conf
+
+def analyze_image_emotions(image_path):
+    """
+    Analyzes a single image using YOLO Detection -> Emotion Classification pipeline.
+    """
+    if not person_model or not emotion_model:
+        return "Neutral", 0.0
+
+    frame = cv2.imread(image_path)
+    if frame is None:
+        return "Neutral", 0.0
+
+    person_results = person_model(frame, classes=[0], verbose=False)
+    for p_result in person_results:
+        boxes = p_result.boxes
+        if len(boxes) == 0:
+            continue
+            
+        best_box = max(boxes, key=lambda b: b.conf[0].item())
+        x1, y1, x2, y2 = map(int, best_box.xyxy[0].tolist())
+        
+        person_crop = frame[max(0, y1):min(frame.shape[0], y2), max(0, x1):min(frame.shape[1], x2)]
+        if person_crop.size == 0:
+            continue
+            
+        e_results = emotion_model(person_crop, verbose=False)
+        for e_res in e_results:
+            if hasattr(e_res, 'probs') and e_res.probs is not None:
+                class_id = e_res.probs.top1
+                conf = e_res.probs.top1conf.item()
+                raw_label = emotion_model.names[class_id].capitalize()
+                
+                if raw_label in EMOTION_CLASS_NAMES:
+                    return raw_label, float(conf)
+                    
+    return "Neutral", 0.0

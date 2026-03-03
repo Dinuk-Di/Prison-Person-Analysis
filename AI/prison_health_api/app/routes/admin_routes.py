@@ -1,8 +1,9 @@
 from flask import Blueprint, request, jsonify
 from app.services.pdf_service import store_pdf_in_vector_db
 from app.services.rag_service import generate_health_profile
-from app.model import Inmate, SurveyAnswer, EmotionLog
+from app.model import db, Inmate, SurveyAnswer, EmotionLog
 import os
+import json
 
 admin_bp = Blueprint('admin', __name__)
 
@@ -51,9 +52,13 @@ def analyze_inmate():
     emotion_str = ", ".join([e.predicted_emotion for e in recent_emotions])
     
     recent_answers = SurveyAnswer.query.filter_by(inmate_id=target_inmate_id).limit(10).all()
-    survey_summary = "; ".join([f"Q: {a.question_text} A: {a.answer_text}" for a in recent_answers])
+    survey_summary = "; ".join([f"Q: {a.question_text} A: {a.answer_text} (Voice: {a.voice_emotion})" for a in recent_answers])
     
     # Call RAG Service
     analysis_json = generate_health_profile(inmate, emotion_str, survey_summary)
+    
+    # Save the report string to DB, so we don't have to keep querying the LLM
+    inmate.final_llm_report = json.dumps(analysis_json)
+    db.session.commit()
     
     return jsonify({"analysis": analysis_json})

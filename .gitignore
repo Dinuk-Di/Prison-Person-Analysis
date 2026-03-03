@@ -1,4 +1,11 @@
-Training/
+AI/Training/Emotion_Voice_Datasets/
+AI/Training/fer2013plus/
+AI/Training/Part2/wav2vec2_emotion/
+AI/Training/runs/
+AI/prison_health_api/chroma_db/
+AI/prison_health_api/uploads/
+AI/prison_health_api/instance/
+
 
 # Ignore environment variable files
 *.env
@@ -11,3 +18,5 @@ __pycache__/
 *.db
 *.pt
 *.sqlite3
+*.pth
+*.safetensors

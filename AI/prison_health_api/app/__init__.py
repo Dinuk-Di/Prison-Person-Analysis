@@ -3,6 +3,8 @@ from flask_cors import CORS
 from app.model import db
 from app.routes.inmate_routes import inmate_bp
 from app.routes.admin_routes import admin_bp
+from app.routes.staff_routes import staff_bp
+from app.routes.history_routes import history_bp
 import os
 
 def create_app():
@@ -23,6 +25,8 @@ def create_app():
     # Register Blueprints
     app.register_blueprint(inmate_bp, url_prefix='/api/inmate')
     app.register_blueprint(admin_bp, url_prefix='/api/admin')
+    app.register_blueprint(staff_bp, url_prefix='/api/staff')
+    app.register_blueprint(history_bp, url_prefix='/api/history')
     
     # Create DB Tables
     with app.app_context():

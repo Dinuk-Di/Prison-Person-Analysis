@@ -32,7 +32,7 @@ const sidebarItems = [
     section: "MANAGEMENT",
     items: [
       {
-        name: "Inmates",
+        name: "Inmate History",
         path: "/inmates",
         icon: Users,
       },
@@ -41,33 +41,8 @@ const sidebarItems = [
         path: "/staff",
         icon: UserPlus,
       },
-      {
-        name: "Security & Monitoring",
-        path: "/camera",
-        icon: CameraIcon,
-      },
     ]
-  },
-  {
-    section: "OPERATIONS",
-    items: [
-      {
-        name: "Incidents",
-        path: "/incidents",
-        icon: AlertCircle,
-      },
-      {
-        name: "Reports",
-        path: "/reports",
-        icon: FileText,
-      },
-      {
-        name: "Analytics",
-        path: "/analytics",
-        icon: BarChart3,
-      },
-    ]
-  },
+  }
 ];
 
 export default function Sidebar({ isOpen, onClose, isMobile, currentUser }) {

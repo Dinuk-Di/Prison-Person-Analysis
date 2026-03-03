@@ -1,6 +1,7 @@
 from flask import Blueprint, request, jsonify
 from app.model import db, Inmate, SurveyAnswer, EmotionLog
 from app.services.emotion_service import analyze_video_emotions
+from app.services.analysis_pipeline import analyze_gender, analyze_image_emotion, extract_prescription_ocr, analyze_voice_emotion
 from app.utils.constants import MEDICAL_QUESTIONS
 import os
 
@@ -75,3 +76,75 @@ def detect_emotion():
     os.remove(temp_path)
     
     return jsonify({"predicted_emotion": emotion, "confidence": conf}), 200
+
+@inmate_bp.route('/analyze_initial_image', methods=['POST'])
+def analyze_initial_image():
+    if 'image' not in request.files:
+        return jsonify({"error": "No image file provided"}), 400
+    image = request.files['image']
+    username = request.form.get('Username')
+    inmate = Inmate.query.filter_by(name=username).first()
+    if not inmate:
+        return jsonify({"error": "Inmate not found"}), 404
+        
+    temp_path = os.path.join("uploads", image.filename)
+    image.save(temp_path)
+    
+    gender_label, gender_conf = analyze_gender(temp_path)
+    emotion_label, emotion_conf = analyze_image_emotion(temp_path)
+    
+    inmate.gender = gender_label
+    inmate.visual_emotion = emotion_label
+    db.session.commit()
+    
+    os.remove(temp_path)
+    return jsonify({"gender": gender_label, "emotion": emotion_label}), 200
+
+@inmate_bp.route('/extract_prescription', methods=['POST'])
+def extract_prescription():
+    if 'image' not in request.files:
+        return jsonify({"error": "No image file provided"}), 400
+    image = request.files['image']
+    username = request.form.get('Username')
+    inmate = Inmate.query.filter_by(name=username).first()
+    if not inmate:
+        return jsonify({"error": "Inmate not found"}), 404
+        
+    temp_path = os.path.join("uploads", image.filename)
+    image.save(temp_path)
+    
+    extracted_text = extract_prescription_ocr(temp_path)
+    inmate.ocr_prescription = extracted_text
+    db.session.commit()
+    
+    os.remove(temp_path)
+    return jsonify({"extracted_text": extracted_text}), 200
+
+@inmate_bp.route('/analyze_voice', methods=['POST'])
+def analyze_voice():
+    username = request.form.get('Username')
+    question = request.form.get('question', '')
+    answer = request.form.get('answer', '')
+    
+    inmate = Inmate.query.filter_by(name=username).first()
+    if not inmate:
+        return jsonify({"error": "Inmate not found"}), 404
+        
+    emotion_label = "neutral"
+    if 'audio' in request.files:
+        audio = request.files['audio']
+        temp_path = os.path.join("uploads", audio.filename)
+        audio.save(temp_path)
+        emotion_label, conf = analyze_voice_emotion(temp_path)
+        os.remove(temp_path)
+        
+    new_answer = SurveyAnswer(
+        inmate_id=inmate.id,
+        question_text=question,
+        answer_text=answer,
+        voice_emotion=emotion_label
+    )
+    db.session.add(new_answer)
+    db.session.commit()
+    
+    return jsonify({"message": "Answer saved", "voice_emotion": emotion_label}), 200

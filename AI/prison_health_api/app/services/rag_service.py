@@ -41,31 +41,42 @@ def generate_health_profile(inmate_data, emotion_history, survey_summary):
         INMATE INFO:
         Name: {name}
         Age: {age}
+        Gender: {gender}
         Crime: {crime}
+        
+        INITIAL VISUAL EMOTION:
+        {visual_emotion}
+        
+        OCR PRESCRIPTION DATA:
+        {ocr_prescription}
         
         RECENT EMOTIONS (Video Analysis):
         {emotions}
         
-        SELF-REPORTED SYMPTOMS (Survey):
+        SELF-REPORTED SYMPTOMS & VOICE EMOTION (Survey):
         {survey}
         
         MEDICAL GUIDELINES (Retrieved Context):
         {context}
         
         TASK:
-        Analyze the inputs and generate a health profile based strictly on the schema provided.
+        Analyze all the inputs (especially the correlation between what they said, their voice emotion, and their initial visual expression + prescription) and generate a health profile based strictly on the schema provided.
         """
         
         prompt = PromptTemplate(
             template=template,
-            input_variables=["name", "age", "crime", "emotions", "survey", "context"]
+            input_variables=["name", "age", "gender", "crime", "visual_emotion", "ocr_prescription", "emotions", "survey", "context"]
         )
+        print("Prompt Template:", prompt)   
         chain = prompt | structured_llm
         inmate_name = getattr(inmate_data, 'name', 'Unknown Inmate')
         response_obj = chain.invoke({
             "name": inmate_name,
             "age": getattr(inmate_data, 'age', 'N/A'),
+            "gender": getattr(inmate_data, 'gender', 'Unknown'),
             "crime": getattr(inmate_data, 'crime_details', 'N/A'),
+            "visual_emotion": getattr(inmate_data, 'visual_emotion', 'N/A'),
+            "ocr_prescription": getattr(inmate_data, 'ocr_prescription', 'None'),
             "emotions": emotion_history,
             "survey": survey_summary,
             "context": context_text

@@ -1,10 +1,24 @@
-import React, { useEffect, useState, useRef } from 'react';
-import { Camera as CameraIcon, Loader, AlertCircle, Play, Square, Upload, CheckCircle, Video, Send, BarChart3, User } from 'lucide-react';
-import { useCamera } from '../../context/CameraContext';
-import Button from '../../components/button/Button';
-import Input from '../../components/input/Input';
-import axiosInstance from '../../services/axiosInstance';
-import toast from 'react-hot-toast';
+import React, { useEffect, useState, useRef } from "react";
+import {
+  Camera as CameraIcon,
+  Loader,
+  AlertCircle,
+  Play,
+  Square,
+  Upload,
+  CheckCircle,
+  Video,
+  Send,
+  BarChart3,
+  User,
+  Mic,
+  ChevronRight,
+} from "lucide-react";
+import { useCamera } from "../../context/CameraContext";
+import Button from "../../components/button/Button";
+import Input from "../../components/input/Input";
+import axiosInstance from "../../services/axiosInstance";
+import toast from "react-hot-toast";
 
 export default function Camera() {
   const {
@@ -21,696 +35,747 @@ export default function Camera() {
     handleDeviceChange,
   } = useCamera();
 
-  const [uploadedFile, setUploadedFile] = useState(null);
-  const [isUploading, setIsUploading] = useState(false);
+  const [step, setStep] = useState(1);
+  const [username, setUsername] = useState("");
+  const [age, setAge] = useState("");
+  const [gender, setGender] = useState("Male");
   
-  // Video recording states
-  const [isRecording, setIsRecording] = useState(false);
-  const [recordedVideo, setRecordedVideo] = useState(null);
-  const [videoBlob, setVideoBlob] = useState(null);
-  const [showVideoForm, setShowVideoForm] = useState(false);
-  const [videoUsername, setVideoUsername] = useState('');
-  const [isSendingVideo, setIsSendingVideo] = useState(false);
-  const mediaRecorderRef = useRef(null);
-  const recordedChunksRef = useRef([]);
-  
-  // Analysis states
-  const [analysisUsername, setAnalysisUsername] = useState('');
-  const [analysisData, setAnalysisData] = useState(null);
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const localVideoRef = useRef(null);
 
-  // Ensure video displays when returning to this page
+  // Step 1: Initial Image
+  const [initialImage, setInitialImage] = useState(null);
+  const [detectedGender, setDetectedGender] = useState("");
+  const [detectedEmotion, setDetectedEmotion] = useState("");
+  const [isAnalyzingImage, setIsAnalyzingImage] = useState(false);
+
+  // Step 2: Documents
+  const [prescriptionFile, setPrescriptionFile] = useState(null);
+  const [pdfFile, setPdfFile] = useState(null);
+  const [isExtractingOCR, setIsExtractingOCR] = useState(false);
+  const [extractedOcrText, setExtractedOcrText] = useState("");
+  const [isUploadingPdf, setIsUploadingPdf] = useState(false);
+
+  // Step 3: Questionnaire
+  const [questions, setQuestions] = useState([]);
+  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
+  const [currentAnswerText, setCurrentAnswerText] = useState("");
+  const [isRecordingAnswer, setIsRecordingAnswer] = useState(false);
+  const [audioBlob, setAudioBlob] = useState(null);
+  const [isProcessingAnswer, setIsProcessingAnswer] = useState(false);
+  const mediaRecorderRef = useRef(null);
+  const audioChunksRef = useRef([]);
+
+  // Step 4: Results
+  const [currentVoiceEmotion, setCurrentVoiceEmotion] = useState(null);
+  const [analysisData, setAnalysisData] = useState(null);
+  const [isGeneratingResults, setIsGeneratingResults] = useState(false);
+
   useEffect(() => {
-    if (videoRef.current && streamRef && streamRef.current) {
-      videoRef.current.srcObject = streamRef.current;
+    if (step === 3 && questions.length === 0) {
+      axiosInstance
+        .get("http://127.0.0.1:5010/api/inmate/questions")
+        .then((res) => setQuestions(res.data.questions))
+        .catch((err) => toast.error("Failed to load questions"));
     }
-  }, [videoRef, streamRef, isCameraActive]);
+  }, [step]);
+
+  // Ensure video displays
+  useEffect(() => {
+    if (localVideoRef.current && streamRef && streamRef.current) {
+      localVideoRef.current.srcObject = streamRef.current;
+    }
+  }, [localVideoRef, streamRef, isCameraActive]);
 
   // Cleanup media recorder on unmount
   useEffect(() => {
     return () => {
-      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      if (
+        mediaRecorderRef.current &&
+        mediaRecorderRef.current.state !== "inactive"
+      ) {
         mediaRecorderRef.current.stop();
       }
     };
   }, []);
 
-  const handleFileChange = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      if (file.type !== 'application/pdf') {
-        toast.error('Please upload a PDF file');
+  const handleRegisterAndCapture = async () => {
+    if (!username || !age) {
+      toast.error("Please enter username and age.");
+      return;
+    }
+
+    // 1. Register
+    try {
+      await axiosInstance.post("http://127.0.0.1:5010/api/inmate/register", {
+        name: username,
+        age: parseInt(age),
+        gender,
+      });
+      toast.success("Registered successfully.");
+    } catch (error) {
+      if (error.response && error.response.status !== 400) {
+        toast.error("Failed to register.");
         return;
       }
-      setUploadedFile(file);
+      // If 400, it might mean user already exists, which is fine for demo purposes
     }
-  };
 
-  const handleFileUpload = async () => {
-    if (!uploadedFile) {
-      toast.error('Please select a PDF file to upload');
+    // 2. Capture and Analyze
+    const canvas = document.createElement("canvas");
+    const videoElem = localVideoRef.current || videoRef.current;
+    if (!videoElem) {
+      toast.error("Camera not active");
       return;
     }
+    canvas.width = videoElem.videoWidth;
+    canvas.height = videoElem.videoHeight;
+    canvas.getContext("2d").drawImage(videoElem, 0, 0);
 
-    setIsUploading(true);
+    canvas.toBlob(async (blob) => {
+      setInitialImage(URL.createObjectURL(blob));
+      setIsAnalyzingImage(true);
 
-    try {
       const formData = new FormData();
-      // Send file as array format
-      formData.append('file', uploadedFile);
+      formData.append("Username", username);
+      formData.append("image", blob, "initial.jpg");
 
-      await axiosInstance.post('http://127.0.0.1:5010/api/admin/upload_medical_record', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      });
-
-      toast.success('Medical record uploaded successfully!');
-      setUploadedFile(null);
-      // Reset file input
-      const fileInput = document.getElementById('pdf-upload');
-      if (fileInput) {
-        fileInput.value = '';
+      try {
+        const res = await axiosInstance.post(
+          "http://127.0.0.1:5010/api/inmate/analyze_initial_image",
+          formData, { headers: { 'Content-Type': 'multipart/form-data' } }
+        );
+        setDetectedGender(res.data.gender);
+        setDetectedEmotion(res.data.emotion);
+        toast.success("Image analyzed successfully!");
+      } catch (err) {
+        toast.error("Failed to analyze image.");
+      } finally {
+        setIsAnalyzingImage(false);
       }
+    }, "image/jpeg");
+  };
+
+  const handlePrescriptionUpload = async () => {
+    if (!prescriptionFile) return toast.error("Select prescription image");
+    setIsExtractingOCR(true);
+    const formData = new FormData();
+    formData.append("Username", username);
+    formData.append("image", prescriptionFile);
+    try {
+      const res = await axiosInstance.post(
+        "http://127.0.0.1:5010/api/inmate/extract_prescription",
+        formData, { headers: { 'Content-Type': 'multipart/form-data' } }
+      );
+      setExtractedOcrText(res.data.extracted_text);
+      toast.success("Prescription OCR extracted!");
     } catch (error) {
-      console.error('Error uploading file:', error);
-      const msg = error?.response?.data?.message || 'Failed to upload file. Please try again.';
-      toast.error(msg);
+      toast.error("Failed to extract prescription.");
     } finally {
-      setIsUploading(false);
+      setIsExtractingOCR(false);
     }
   };
 
-  const handleStartRecording = async () => {
-    if (!isCameraActive || !streamRef.current) {
-      toast.error('Please start the camera first');
+  const handlePdfUpload = async () => {
+    if (!pdfFile) return toast.error("Select PDF file");
+    setIsUploadingPdf(true);
+    const formData = new FormData();
+    formData.append("file", pdfFile);
+    try {
+      await axiosInstance.post(
+        "http://127.0.0.1:5010/api/admin/upload_medical_record",
+        formData, { headers: { 'Content-Type': 'multipart/form-data' } }
+      );
+      toast.success("PDF record uploaded!");
+    } catch (error) {
+      toast.error("Failed to upload PDF.");
+    } finally {
+      setIsUploadingPdf(false);
+    }
+  };
+
+  const startAudioRecording = () => {
+    if (isRecordingAnswer) return;
+    navigator.mediaDevices
+      .getUserMedia({ audio: true })
+      .then((stream) => {
+        audioChunksRef.current = [];
+        const mediaRecorder = new MediaRecorder(stream);
+        mediaRecorderRef.current = mediaRecorder;
+
+        mediaRecorder.ondataavailable = (event) => {
+          if (event.data.size > 0) audioChunksRef.current.push(event.data);
+        };
+
+        mediaRecorder.onstop = () => {
+          const blob = new Blob(audioChunksRef.current, { type: "audio/webm" });
+          setAudioBlob(blob);
+          setIsRecordingAnswer(false);
+          toast.success("Audio captured.");
+        };
+
+        mediaRecorder.start();
+        setIsRecordingAnswer(true);
+      })
+      .catch((err) => toast.error("Microphone access denied."));
+  };
+
+  const stopAudioRecording = () => {
+    return new Promise((resolve) => {
+      if (
+        mediaRecorderRef.current &&
+        mediaRecorderRef.current.state === "recording"
+      ) {
+        mediaRecorderRef.current.onstop = () => {
+          const blob = new Blob(audioChunksRef.current, { type: "audio/webm" });
+          setAudioBlob(blob);
+          setIsRecordingAnswer(false);
+          toast.success("Audio captured.");
+          resolve(blob);
+        };
+        mediaRecorderRef.current.stop();
+      } else {
+        resolve(audioBlob);
+      }
+    });
+  };
+
+  useEffect(() => {
+    if (step === 3 && questions.length > 0 && !currentVoiceEmotion && !isProcessingAnswer) {
+      if (!isRecordingAnswer && (!mediaRecorderRef.current || mediaRecorderRef.current.state === "inactive")) {
+        startAudioRecording();
+      }
+    }
+  }, [step, questions, currentQuestionIndex, currentVoiceEmotion, isProcessingAnswer, isRecordingAnswer]);
+
+  const analyzeAnswer = async () => {
+    if (!currentAnswerText) {
+      toast.error("Please provide a typed/selected answer.");
       return;
+    }
+
+    setIsProcessingAnswer(true);
+
+    let finalBlob = audioBlob;
+    if (isRecordingAnswer) {
+      finalBlob = await stopAudioRecording();
+    }
+
+    const formData = new FormData();
+    formData.append("Username", username);
+    formData.append("question", questions[currentQuestionIndex]);
+    formData.append("answer", currentAnswerText);
+    if (finalBlob) {
+      formData.append("audio", finalBlob, "answer.webm");
     }
 
     try {
-      recordedChunksRef.current = [];
-      
-      // Try different mime types for browser compatibility
-      let mimeType = 'video/webm;codecs=vp9';
-      if (!MediaRecorder.isTypeSupported(mimeType)) {
-        mimeType = 'video/webm;codecs=vp8';
-        if (!MediaRecorder.isTypeSupported(mimeType)) {
-          mimeType = 'video/webm';
-          if (!MediaRecorder.isTypeSupported(mimeType)) {
-            mimeType = '';
-          }
-        }
-      }
-      
-      const options = mimeType ? { mimeType } : {};
-      const mediaRecorder = new MediaRecorder(streamRef.current, options);
-      
-      mediaRecorderRef.current = mediaRecorder;
-
-      mediaRecorder.ondataavailable = (event) => {
-        if (event.data && event.data.size > 0) {
-          recordedChunksRef.current.push(event.data);
-        }
-      };
-
-      mediaRecorder.onstop = () => {
-        const blob = new Blob(recordedChunksRef.current, { type: mimeType || 'video/webm' });
-        setVideoBlob(blob);
-        const videoURL = URL.createObjectURL(blob);
-        setRecordedVideo(videoURL);
-        setShowVideoForm(true);
-        setIsRecording(false);
-      };
-
-      mediaRecorder.onerror = (event) => {
-        console.error('MediaRecorder error:', event);
-        toast.error('Recording error occurred');
-        setIsRecording(false);
-      };
-
-      mediaRecorder.start();
-      setIsRecording(true);
-      toast.success('Recording started...');
-
-      // Auto-stop after 5 seconds
-      setTimeout(() => {
-        if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
-          mediaRecorderRef.current.stop();
-        }
-      }, 5000);
-    } catch (error) {
-      console.error('Error starting recording:', error);
-      toast.error('Failed to start recording. Please ensure your browser supports video recording.');
-      setIsRecording(false);
-    }
-  };
-
-  const handleStopRecording = () => {
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
-      mediaRecorderRef.current.stop();
-    }
-  };
-
-  const handleSendVideo = async () => {
-    if (!videoUsername.trim()) {
-      toast.error('Please enter a username');
-      return;
-    }
-
-    if (!videoBlob) {
-      toast.error('No video recorded');
-      return;
-    }
-
-    setIsSendingVideo(true);
-
-    try {
-      const formData = new FormData();
-      formData.append('Username', videoUsername.trim());
-      formData.append('video', videoBlob, 'video.webm');
-
-      await axiosInstance.post('http://127.0.0.1:5010/api/inmate/detect_emotion', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      });
-
-      toast.success('Video sent successfully!');
-      setShowVideoForm(false);
-      setRecordedVideo(null);
-      setVideoBlob(null);
-      setVideoUsername('');
-    } catch (error) {
-      console.error('Error sending video:', error);
-      const msg = error?.response?.data?.message || 'Failed to send video. Please try again.';
-      toast.error(msg);
+      const res = await axiosInstance.post(
+        "http://127.0.0.1:5010/api/inmate/analyze_voice",
+        formData, { headers: { 'Content-Type': 'multipart/form-data' } }
+      );
+      toast.success(`Voice Emotion Detected: ${res.data.voice_emotion}`);
+      setCurrentVoiceEmotion(res.data.voice_emotion);
+    } catch (err) {
+      toast.error("Failed to process answer.");
     } finally {
-      setIsSendingVideo(false);
+      setIsProcessingAnswer(false);
     }
   };
 
-  const handleAnalyze = async () => {
-    if (!analysisUsername.trim()) {
-      toast.error('Please enter a username');
-      return;
+  const proceedToNextQuestion = () => {
+    setCurrentAnswerText("");
+    setAudioBlob(null);
+    setCurrentVoiceEmotion(null);
+
+    if (currentQuestionIndex < questions.length - 1) {
+      setCurrentQuestionIndex(currentQuestionIndex + 1);
+    } else {
+      setStep(4);
+      generateFinalResults();
     }
+  };
 
-    setIsAnalyzing(true);
-
+  const generateFinalResults = async () => {
+    setIsGeneratingResults(true);
     try {
       const response = await axiosInstance.post(
         "http://127.0.0.1:5010/api/admin/analyze_inmate",
-        { Username: analysisUsername.trim() }
+        { Username: username },
       );
       setAnalysisData(response.data);
-      toast.success('Analysis completed!');
+      toast.success("Final Analysis completed!");
     } catch (error) {
-      console.error('Error analyzing:', error);
-      const msg = error?.response?.data?.message || 'Failed to analyze inmate. Please try again.';
-      toast.error(msg);
-      setAnalysisData(null);
+      toast.error("Failed to generate final report.");
     } finally {
-      setIsAnalyzing(false);
+      setIsGeneratingResults(false);
     }
   };
 
   return (
-    <div className="h-full bg-gradient-to-br from-slate-50 to-slate-100">
-      <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="mb-4">
-          <div className="flex items-center gap-3 mb-2">
+    <div className="min-h-screen bg-slate-50 py-8 px-4">
+      <div className="max-w-5xl mx-auto space-y-8">
+        {/* Header Setup */}
+        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+          <h1 className="text-3xl font-bold text-slate-900 flex items-center gap-3">
             <CameraIcon className="w-8 h-8 text-blue-600" />
-            <h1 className="text-3xl font-bold text-slate-900">Security Monitoring</h1>
-          </div>
-          <p className="text-slate-600">Live camera feed for prison surveillance</p>
-        </div>
+            Inmate Diagnostic Flow
+          </h1>
 
-        {/* Main Camera Container */}
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-          {/* Video Feed */}
-          <div className="lg:col-span-3">
-            <div className="bg-white rounded-lg shadow-lg overflow-hidden border border-slate-200">
-              <div className="relative bg-black aspect-video flex items-center justify-center">
-                {isLoading && (
-                  <div className="absolute inset-0 flex items-center justify-center bg-black/50 z-10">
-                    <div className="text-center">
-                      <Loader className="w-12 h-12 text-blue-500 animate-spin mx-auto mb-3" />
-                      <p className="text-white font-medium">Initializing camera...</p>
-                    </div>
-                  </div>
-                )}
+          {/* Stepper Progress Map */}
+          <div className="flex items-center justify-between mt-8 relative">
+            <div className="absolute left-0 top-1/2 -translate-y-1/2 w-full h-1 bg-slate-200 -z-10 rounded-full"></div>
 
-                {error && !isCameraActive && (
-                  <div className="absolute inset-0 flex items-center justify-center bg-red-900/90 z-10 p-4">
-                    <div className="text-center">
-                      <AlertCircle className="w-12 h-12 text-red-300 mx-auto mb-3" />
-                      <p className="text-red-100 font-medium text-sm">{error}</p>
-                    </div>
-                  </div>
-                )}
-
-                <video
-                  ref={videoRef}
-                  className="w-full h-full object-cover"
-                  playsInline
-                  autoPlay
-                  muted
-                />
-              </div>
-
-              {/* Video Stats */}
-              <div className="bg-slate-900 text-white p-4 flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className={`w-3 h-3 rounded-full ${isCameraActive ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></div>
-                  <span className="text-sm font-medium">
-                    {isCameraActive ? 'LIVE' : 'OFFLINE'}
-                  </span>
+            {[1, 2, 3, 4].map((num, i) => (
+              <div
+                key={num}
+                className="flex flex-col items-center gap-2 bg-white px-2"
+              >
+                <div
+                  className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm transition-colors ${step >= num ? "bg-blue-600 text-white shadow-md shadow-blue-200" : "bg-slate-200 text-slate-500"}`}
+                >
+                  {step > num ? <CheckCircle className="w-5 h-5" /> : num}
                 </div>
-                <span className="text-xs text-slate-400">
-                  {new Date().toLocaleTimeString()}
+                <span
+                  className={`text-xs font-semibold ${step >= num ? "text-slate-800" : "text-slate-400"}`}
+                >
+                  {num === 1
+                    ? "Identity"
+                    : num === 2
+                      ? "Documents"
+                      : num === 3
+                        ? "Q&A"
+                        : "Results"}
                 </span>
               </div>
-            </div>
-          </div>
-
-          {/* Control Panel */}
-          <div className="lg:col-span-1">
-            <div className="bg-white rounded-lg shadow-lg border border-slate-200 p-6 space-y-6">
-              {/* Device Selection */}
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-3">
-                  Select Camera
-                </label>
-                {devices.length > 0 ? (
-                  <select
-                    value={selectedDeviceId}
-                    onChange={(e) => handleDeviceChange(e.target.value)}
-                    disabled={isCameraActive}
-                    className="w-full px-3 py-2 border-2 border-slate-300 rounded-lg focus:border-blue-500 focus:outline-none text-sm disabled:bg-slate-100"
-                  >
-                    {devices.map((device, index) => (
-                      <option key={device.deviceId} value={device.deviceId}>
-                        {device.label || `Camera ${index + 1}`}
-                      </option>
-                    ))}
-                  </select>
-                ) : (
-                  <p className="text-sm text-slate-500 p-2">No cameras found</p>
-                )}
-              </div>
-
-              {/* Action Buttons */}
-              <div className="space-y-3">
-                {!isCameraActive ? (
-                  <button
-                    onClick={startCamera}
-                    disabled={isLoading || devices.length === 0}
-                    className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-green-600 to-green-700 text-white font-semibold rounded-lg hover:shadow-lg transition-all disabled:opacity-60 disabled:cursor-not-allowed"
-                  >
-                    <Play className="w-4 h-4" />
-                    View Camera
-                  </button>
-                ) : (
-                  <button
-                    onClick={stopCamera}
-                    className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-red-600 to-red-700 text-white font-semibold rounded-lg hover:shadow-lg transition-all"
-                  >
-                    <Square className="w-4 h-4" />
-                    Stop Camera
-                  </button>
-                )}
-
-                {!isRecording ? (
-                  <button
-                    onClick={handleStartRecording}
-                    disabled={!isCameraActive}
-                    className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white font-semibold rounded-lg hover:shadow-lg transition-all disabled:opacity-60 disabled:cursor-not-allowed"
-                  >
-                    <Video className="w-4 h-4" />
-                    Capture Video
-                  </button>
-                ) : (
-                  <button
-                    onClick={handleStopRecording}
-                    className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-red-600 to-red-700 text-white font-semibold rounded-lg hover:shadow-lg transition-all animate-pulse"
-                  >
-                    <Square className="w-4 h-4" />
-                    Recording... (5s)
-                  </button>
-                )}
-              </div>
-
-              {/* Status Info */}
-              <div className="pt-4 border-t border-slate-200">
-                <p className="text-xs font-semibold text-slate-700 mb-3 uppercase tracking-wider">
-                  Camera Status
-                </p>
-                <div className="space-y-2 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-slate-600">Status:</span>
-                    <span className={`font-semibold ${isCameraActive ? 'text-green-600' : 'text-red-600'}`}>
-                      {isCameraActive ? 'Active' : 'Inactive'}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-600">Resolution:</span>
-                    <span className="text-slate-700 font-medium">
-                      {isCameraActive && videoRef.current?.videoWidth
-                        ? `${videoRef.current.videoWidth}x${videoRef.current.videoHeight}`
-                        : 'N/A'}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-600">Cameras:</span>
-                    <span className="text-slate-700 font-medium">{devices.length}</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* File Upload Section */}
-              <div className="pt-4 border-t border-slate-200">
-                <label className="block text-sm font-semibold text-slate-700 mb-3">
-                  Upload Medical Record (PDF)
-                </label>
-                <div className="border-2 border-dashed border-slate-300 rounded-lg p-4 text-center hover:border-blue-500 transition-colors mb-3">
-                  <input
-                    type="file"
-                    id="pdf-upload"
-                    onChange={handleFileChange}
-                    className="hidden"
-                    accept="application/pdf"
-                  />
-                  <label
-                    htmlFor="pdf-upload"
-                    className="cursor-pointer flex flex-col items-center"
-                  >
-                    {uploadedFile ? (
-                      <div className="space-y-2">
-                        <CheckCircle className="w-8 h-8 text-green-600 mx-auto" />
-                        <p className="text-xs font-medium text-slate-900">
-                          {uploadedFile.name}
-                        </p>
-                        <p className="text-xs text-slate-500">
-                          Click to change file
-                        </p>
-                      </div>
-                    ) : (
-                      <div className="space-y-2">
-                        <Upload className="w-8 h-8 text-slate-400 mx-auto" />
-                        <p className="text-xs font-medium text-slate-700">
-                          Click to upload PDF
-                        </p>
-                        <p className="text-xs text-slate-500">
-                          Medical record file
-                        </p>
-                      </div>
-                    )}
-                  </label>
-                </div>
-                <Button
-                  variant="primary"
-                  onClick={handleFileUpload}
-                  disabled={!uploadedFile || isUploading}
-                  loading={isUploading}
-                  className="w-full"
-                  size="sm"
-                >
-                  <Upload className="w-4 h-4" />
-                  Upload File
-                </Button>
-              </div>
-
-              {/* Info Box */}
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <p className="text-xs text-blue-700">
-                  <span className="font-semibold">Note:</span> Camera feed runs in background across all pages. Use global API to access frame data.
-                </p>
-              </div>
-            </div>
+            ))}
           </div>
         </div>
 
-        {/* Video Upload Form - Prominent Section */}
-        {showVideoForm && recordedVideo && (
-          <div className="mt-6 bg-white rounded-lg shadow-lg border border-slate-200 p-6">
-            <div className="flex items-center justify-between mb-6">
-              <div className="flex items-center gap-3">
-                <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg p-3">
-                  <Video className="w-6 h-6 text-blue-600" />
-                </div>
-                <div>
-                  <h2 className="text-2xl font-bold text-slate-900">Send Video for Emotion Detection</h2>
-                  <p className="text-sm text-slate-600">Review your recorded video and submit for analysis</p>
-                </div>
+        {/* STEP 1: IDENTITY & IMAGE */}
+        {step === 1 && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-5">
+              <h2 className="text-xl font-bold flex items-center gap-2">
+                <User className="text-blue-600" /> Inmate Details
+              </h2>
+              <Input
+                label="Username"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                placeholder="e.g. JohnDoe"
+              />
+              <Input
+                label="Age"
+                type="number"
+                value={age}
+                onChange={(e) => setAge(e.target.value)}
+                placeholder="e.g. 30"
+              />
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-2">
+                  Gender Option
+                </label>
+                <select
+                  value={gender}
+                  onChange={(e) => setGender(e.target.value)}
+                  className="w-full px-3 py-2 border-2 border-slate-300 rounded-lg focus:border-blue-500 focus:outline-none"
+                >
+                  <option>Male</option>
+                  <option>Female</option>
+                </select>
               </div>
-              <button
-                onClick={() => {
-                  setShowVideoForm(false);
-                  setRecordedVideo(null);
-                  setVideoBlob(null);
-                  setVideoUsername('');
-                }}
-                className="text-slate-400 hover:text-slate-600 transition-colors p-2 hover:bg-slate-100 rounded-lg"
-              >
-                ✕
-              </button>
+
+              <div className="pt-4 border-t border-slate-100">
+                <Button
+                  variant="primary"
+                  className="w-full"
+                  onClick={handleRegisterAndCapture}
+                  disabled={!isCameraActive || isAnalyzingImage}
+                  loading={isAnalyzingImage}
+                >
+                  <CameraIcon className="w-4 h-4 mr-2" />
+                  Take Initial Photo & Analyze
+                </Button>
+                <p className="text-xs text-slate-500 text-center mt-3">
+                  This will extract visual emotion and automated gender
+                  classification
+                </p>
+              </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Video Preview */}
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-3">
-                  Video Preview
-                </label>
-                <div className="bg-slate-900 rounded-lg overflow-hidden">
-                  <video
-                    src={recordedVideo}
-                    controls
-                    className="w-full h-auto"
-                  />
-                </div>
+            <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+              <div className="relative bg-black rounded-lg aspect-video flex items-center justify-center overflow-hidden mb-4">
+                {!isCameraActive && (
+                  <Button
+                    onClick={startCamera}
+                    variant="outline"
+                    className="text-white border-white hover:bg-white hover:text-black"
+                  >
+                    <Play className="w-4 h-4 mr-2" /> Start Camera
+                  </Button>
+                )}
+                <video
+                  ref={localVideoRef}
+                  className={`w-full h-full object-cover ${!isCameraActive ? "hidden" : ""}`}
+                  autoPlay
+                  muted
+                  playsInline
+                />
               </div>
-
-              {/* Upload Form */}
-              <div className="flex flex-col justify-center">
-                <div className="space-y-4">
-                  <Input
-                    type="text"
-                    label="Username"
-                    placeholder="Enter username for emotion detection"
-                    value={videoUsername}
-                    onChange={(e) => setVideoUsername(e.target.value)}
-                    required
-                  />
-                  
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                    <p className="text-xs text-blue-700 mb-2">
-                      <span className="font-semibold">Note:</span> This video will be analyzed for emotional state detection.
-                    </p>
-                    <p className="text-xs text-blue-600">
-                      Make sure the username matches the registered inmate.
-                    </p>
+              {initialImage && (
+                <div className="flex flex-col gap-4 mt-6">
+                  <div className="flex gap-4 items-center bg-blue-50 p-4 rounded-lg">
+                    <img
+                      src={initialImage}
+                      alt="Captured"
+                      className="w-16 h-16 rounded-md object-cover shadow"
+                    />
+                    <div className="flex-1">
+                      <p className="text-sm font-bold text-slate-800">
+                        Analyzed Identity
+                      </p>
+                      <p className="text-xs text-slate-600">
+                        Model Gender:{" "}
+                        <span className="font-semibold text-blue-700">
+                          {detectedGender}
+                        </span>
+                      </p>
+                      <p className="text-xs text-slate-600">
+                        Visual Emotion:{" "}
+                        <span className="font-semibold text-blue-700">
+                          {detectedEmotion}
+                        </span>
+                      </p>
+                    </div>
                   </div>
-
-                  <div className="flex gap-3 pt-2">
-                    <Button
-                      variant="outline"
-                      onClick={() => {
-                        setShowVideoForm(false);
-                        setRecordedVideo(null);
-                        setVideoBlob(null);
-                        setVideoUsername('');
-                      }}
-                      className="flex-1"
-                    >
-                      Cancel
-                    </Button>
-                    <Button
-                      variant="primary"
-                      onClick={handleSendVideo}
-                      disabled={!videoUsername.trim() || isSendingVideo}
-                      loading={isSendingVideo}
-                      className="flex-1"
-                    >
-                      <Send className="w-4 h-4" />
-                      Send Video
-                    </Button>
-                  </div>
+                  <Button onClick={() => setStep(2)} className="bg-slate-900 text-white hover:bg-slate-800 self-end">
+                    Proceed to Medical Documents <ChevronRight className="w-4 h-4 ml-2" />
+                  </Button>
                 </div>
-              </div>
+              )}
             </div>
           </div>
         )}
 
-        {/* Analyze Inmate Section - Prominent */}
-        <div className="mt-6 bg-white rounded-lg shadow-lg border border-slate-200 p-6">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="bg-gradient-to-br from-purple-50 to-indigo-50 rounded-lg p-3">
-              <BarChart3 className="w-6 h-6 text-purple-600" />
-            </div>
-            <div>
-              <h2 className="text-2xl font-bold text-slate-900">Analyze Inmate</h2>
-              <p className="text-sm text-slate-600">Get comprehensive mental health analysis for an inmate</p>
-            </div>
-          </div>
+        {/* STEP 2: DOCTOR DOCUMENTS */}
+        {step === 2 && (
+          <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+            <h2 className="text-xl font-bold mb-6 text-slate-800">
+              Upload Medical Documents
+            </h2>
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Input Section */}
-            <div className="lg:col-span-2">
-              <Input
-                type="text"
-                label="Inmate Username"
-                placeholder="Enter the username of the inmate to analyze"
-                value={analysisUsername}
-                onChange={(e) => setAnalysisUsername(e.target.value)}
-                icon={User}
-                required
-              />
-              
-              <div className="mt-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              {/* Prescription Section */}
+              <div className="space-y-4">
+                <div className="border-2 border-dashed border-slate-300 rounded-xl p-6 text-center bg-slate-50">
+                  <Upload className="w-8 h-8 text-blue-500 mx-auto mb-3" />
+                  <p className="font-semibold text-slate-700 mb-1">
+                    Prescription Image
+                  </p>
+                  <p className="text-xs text-slate-500 mb-4">
+                    Upload a clear photo for OCR extraction
+                  </p>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => setPrescriptionFile(e.target.files[0])}
+                    className="text-sm w-full file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                  />
+                </div>
                 <Button
-                  variant="primary"
-                  onClick={handleAnalyze}
-                  disabled={!analysisUsername.trim() || isAnalyzing}
-                  loading={isAnalyzing}
+                  onClick={handlePrescriptionUpload}
+                  loading={isExtractingOCR}
+                  disabled={!prescriptionFile}
                   className="w-full"
-                  size="lg"
                 >
-                  <BarChart3 className="w-5 h-5" />
-                  {isAnalyzing ? 'Analyzing...' : 'Start Analysis'}
+                  Extract with GLM-OCR
+                </Button>
+                {extractedOcrText && (
+                  <div className="bg-slate-100 p-3 rounded-lg text-xs text-slate-700 max-h-32 overflow-y-auto font-mono">
+                    {extractedOcrText}
+                  </div>
+                )}
+              </div>
+
+              {/* PDF Reports Section */}
+              <div className="space-y-4">
+                <div className="border-2 border-dashed border-slate-300 rounded-xl p-6 text-center bg-slate-50">
+                  <Upload className="w-8 h-8 text-indigo-500 mx-auto mb-3" />
+                  <p className="font-semibold text-slate-700 mb-1">
+                    Past Medical Reports
+                  </p>
+                  <p className="text-xs text-slate-500 mb-4">
+                    Upload PDF files for vector search context
+                  </p>
+                  <input
+                    type="file"
+                    accept=".pdf"
+                    onChange={(e) => setPdfFile(e.target.files[0])}
+                    className="text-sm w-full file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
+                  />
+                </div>
+                <Button
+                  variant="secondary"
+                  onClick={handlePdfUpload}
+                  loading={isUploadingPdf}
+                  disabled={!pdfFile}
+                  className="w-full"
+                >
+                  Upload to ChromaDB
                 </Button>
               </div>
             </div>
 
-            {/* Info Card */}
-            <div className="lg:col-span-1">
-              <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg p-5 h-full border border-blue-200">
-                <div className="space-y-3">
-                  <div className="flex items-start gap-2">
-                    <CheckCircle className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
-                    <div>
-                      <p className="text-sm font-semibold text-slate-900">Comprehensive Analysis</p>
-                      <p className="text-xs text-slate-600">Risk assessment and recommendations</p>
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-2">
-                    <CheckCircle className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
-                    <div>
-                      <p className="text-sm font-semibold text-slate-900">Mental Health Insights</p>
-                      <p className="text-xs text-slate-600">Suspected conditions and reasoning</p>
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-2">
-                    <CheckCircle className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
-                    <div>
-                      <p className="text-sm font-semibold text-slate-900">Actionable Recommendations</p>
-                      <p className="text-xs text-slate-600">Tailored intervention strategies</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
+            <div className="mt-8 flex justify-end pt-4 border-t border-slate-100">
+              <Button
+                onClick={() => setStep(3)}
+                className="bg-slate-900 text-white hover:bg-slate-800"
+              >
+                Proceed to Questionnaire{" "}
+                <ChevronRight className="w-4 h-4 ml-2" />
+              </Button>
             </div>
           </div>
-        </div>
+        )}
 
-        {/* Analysis Results Card */}
-        {analysisData && analysisData.analysis && (
-          <div className="mt-6 bg-white rounded-lg shadow-lg border border-slate-200 p-6">
-            <div className="flex items-center justify-between mb-6">
-              <div className="flex items-center gap-3">
-                <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-lg p-3">
-                  <BarChart3 className="w-6 h-6 text-green-600" />
-                </div>
-                <div>
-                  <h2 className="text-2xl font-bold text-slate-900">Analysis Results</h2>
-                  <p className="text-sm text-slate-600">Comprehensive mental health assessment</p>
-                </div>
-              </div>
-              <button
-                onClick={() => setAnalysisData(null)}
-                className="text-slate-400 hover:text-slate-600 transition-colors p-2 hover:bg-slate-100 rounded-lg"
-              >
-                ✕
-              </button>
+        {/* STEP 3: QUESTIONNAIRE */}
+        {step === 3 && (
+          <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-200">
+            <div className="mb-6 flex items-center justify-between">
+              <h2 className="text-2xl font-bold text-slate-800">
+                Psychological Assessment
+              </h2>
+              <span className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-bold">
+                Question {currentQuestionIndex + 1} of {questions.length}
+              </span>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* Risk Level & Conditions */}
-              <div className="lg:col-span-1 space-y-4">
-                {/* Risk Level Card */}
-                <div className="bg-gradient-to-br from-slate-50 to-slate-100 rounded-lg p-4 border border-slate-200">
-                  <p className="text-xs font-semibold text-slate-600 uppercase tracking-wider mb-3">Risk Assessment</p>
-                  <div className="flex items-center gap-3 mb-3">
-                    <span className={`px-4 py-2 rounded-lg text-base font-bold ${
-                      analysisData.analysis.risk_level === 'High' ? 'bg-red-100 text-red-700 border-2 border-red-300' :
-                      analysisData.analysis.risk_level === 'Medium' ? 'bg-yellow-100 text-yellow-700 border-2 border-yellow-300' :
-                      'bg-green-100 text-green-700 border-2 border-green-300'
-                    }`}>
-                      {analysisData.analysis.risk_level}
-                    </span>
-                    {analysisData.analysis.urgent_alert && (
-                      <span className="px-3 py-1 bg-red-500 text-white rounded-full text-xs font-bold animate-pulse">
-                        URGENT
-                      </span>
-                    )}
+            <div className="bg-slate-50 rounded-xl p-6 mb-8 border border-slate-100">
+              <p className="text-xl font-medium text-slate-800 leading-relaxed">
+                {questions[currentQuestionIndex]}
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
+              {/* Audio Recording */}
+              <div className="space-y-4 bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                <h3 className="font-semibold text-slate-700 flex items-center gap-2">
+                  <Mic className="w-5 h-5 text-red-500" /> Verbal Answer
+                </h3>
+                <p className="text-xs text-slate-500">
+                  Record the prisoner's spoken answer for Quantized Word2Vec
+                  emotion detection.
+                </p>
+
+                <div className="flex gap-3">
+                  {isRecordingAnswer ? (
+                    <div className="flex-1 py-3 bg-red-50 text-red-600 font-semibold rounded-lg border border-red-200 flex items-center justify-center gap-2 animate-pulse">
+                      <div className="w-3 h-3 rounded-full bg-red-600"></div>{" "}
+                      Recording Answer...
+                    </div>
+                  ) : audioBlob ? (
+                    <div className="flex-1 py-3 bg-slate-50 text-slate-500 font-semibold rounded-lg border border-slate-200 flex items-center justify-center gap-2">
+                       <CheckCircle className="w-4 h-4 text-green-500"/> Audio Recorded
+                    </div>
+                  ) : (
+                    <div className="flex-1 py-3 bg-slate-50 text-slate-500 font-semibold rounded-lg border border-slate-200 flex items-center justify-center gap-2">
+                      Preparing Microphone...
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Text Answer */}
+              <div className="space-y-4">
+                <Input
+                  label="Typed / Picked Answer"
+                  placeholder="Type the answer here..."
+                  value={currentAnswerText}
+                  onChange={(e) => setCurrentAnswerText(e.target.value)}
+                />
+                <div className="flex flex-wrap gap-2 mt-2">
+                  <button
+                    onClick={() => setCurrentAnswerText("Not at all")}
+                    className="px-3 py-1 text-xs bg-slate-100 hover:bg-slate-200 rounded-full text-slate-700 transition-colors"
+                  >
+                    Not at all
+                  </button>
+                  <button
+                    onClick={() => setCurrentAnswerText("Several days")}
+                    className="px-3 py-1 text-xs bg-slate-100 hover:bg-slate-200 rounded-full text-slate-700 transition-colors"
+                  >
+                    Several days
+                  </button>
+                  <button
+                    onClick={() =>
+                      setCurrentAnswerText("More than half the days")
+                    }
+                    className="px-3 py-1 text-xs bg-slate-100 hover:bg-slate-200 rounded-full text-slate-700 transition-colors"
+                  >
+                    More than half
+                  </button>
+                  <button
+                    onClick={() => setCurrentAnswerText("Nearly every day")}
+                    className="px-3 py-1 text-xs bg-slate-100 hover:bg-slate-200 rounded-full text-slate-700 transition-colors"
+                  >
+                    Nearly every day
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-10 flex justify-end items-center gap-6">
+              {!currentVoiceEmotion ? (
+                <Button
+                  size="lg"
+                  variant="primary"
+                  onClick={analyzeAnswer}
+                  loading={isProcessingAnswer}
+                  disabled={!currentAnswerText || isProcessingAnswer}
+                >
+                  Analyze Answer
+                </Button>
+              ) : (
+                <>
+                  <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 mr-auto">
+                    Detected Voice Emotion: <span className="text-lg">{currentVoiceEmotion}</span>
                   </div>
-                  <p className="text-xs text-slate-600">
-                    {analysisData.analysis.risk_level === 'High' && 'Immediate attention required'}
-                    {analysisData.analysis.risk_level === 'Medium' && 'Monitor closely and provide support'}
-                    {analysisData.analysis.risk_level === 'Low' && 'Continue regular monitoring'}
-                  </p>
+                  <Button
+                    size="lg"
+                    onClick={proceedToNextQuestion}
+                    className="bg-slate-900 text-white hover:bg-slate-800"
+                  >
+                    {currentQuestionIndex < questions.length - 1
+                      ? "Next Question"
+                      : "Complete Assessment"}
+                    <ChevronRight className="w-5 h-5 ml-2" />
+                  </Button>
+                </>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* STEP 4: RECOMMENDATIONS */}
+        {step === 4 && (
+          <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-200">
+            {isGeneratingResults || !analysisData ? (
+              <div className="flex flex-col items-center justify-center py-20 space-y-4">
+                <Loader className="w-12 h-12 text-blue-600 animate-spin" />
+                <h2 className="text-xl font-bold text-slate-800">
+                  Aggregating AI Data...
+                </h2>
+                <p className="text-slate-500 text-center max-w-md">
+                  Running LLM over extracted OCR, PDF contexts, visual emotions,
+                  gender demographics, and Word2Vec voice profiles.
+                </p>
+              </div>
+            ) : (
+              <div>
+                <div className="flex items-center gap-4 mb-8">
+                  <div className="w-16 h-16 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-lg">
+                    <BarChart3 className="w-8 h-8 text-white" />
+                  </div>
+                  <div>
+                    <h2 className="text-3xl font-extrabold text-slate-900">
+                      Final Diagnostic Report
+                    </h2>
+                    <p className="text-slate-500">
+                      Generated for {username} ({age} yrs, {detectedGender})
+                    </p>
+                  </div>
                 </div>
 
-                {/* Suspected Conditions */}
-                {analysisData.analysis.suspected_conditions && analysisData.analysis.suspected_conditions.length > 0 && (
-                  <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg p-4 border border-blue-200">
-                    <p className="text-xs font-semibold text-slate-700 uppercase tracking-wider mb-3">Suspected Conditions</p>
-                    <div className="flex flex-wrap gap-2">
-                      {analysisData.analysis.suspected_conditions.map((condition, index) => (
-                        <span key={index} className="px-3 py-1.5 bg-white text-blue-700 rounded-lg text-sm font-medium border border-blue-200 shadow-sm">
-                          {condition}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <div className="md:col-span-1 space-y-4">
+                    <div className="bg-slate-50 rounded-xl p-5 border border-slate-200">
+                      <p className="text-sm font-semibold text-slate-500 tracking-wider uppercase mb-1">
+                        Risk Level
+                      </p>
+                      <div className="flex items-center gap-3">
+                        <span
+                          className={`text-2xl font-black ${
+                            analysisData.analysis.risk_level === "High"
+                              ? "text-red-600"
+                              : analysisData.analysis.risk_level === "Medium"
+                                ? "text-orange-500"
+                                : "text-emerald-500"
+                          }`}
+                        >
+                          {analysisData.analysis.risk_level}
                         </span>
-                      ))}
+                        {analysisData.analysis.urgent_alert && (
+                          <span className="px-2 py-1 bg-red-100 text-red-700 text-xs font-bold rounded animate-pulse">
+                            URGENT
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="bg-slate-50 rounded-xl p-5 border border-slate-200">
+                      <p className="text-sm font-semibold text-slate-500 tracking-wider uppercase mb-3">
+                        Suspected Conditions
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {analysisData.analysis.suspected_conditions?.map(
+                          (c, i) => (
+                            <span
+                              key={i}
+                              className="px-3 py-1 bg-white border border-slate-200 rounded-md text-sm font-medium text-slate-700 shadow-sm"
+                            >
+                              {c}
+                            </span>
+                          ),
+                        )}
+                      </div>
                     </div>
                   </div>
-                )}
-              </div>
 
-              {/* Main Content */}
-              <div className="lg:col-span-2 space-y-4">
-                {/* Reasoning */}
-                <div className="bg-slate-50 rounded-lg p-5 border border-slate-200">
-                  <p className="text-sm font-semibold text-slate-900 mb-3 flex items-center gap-2">
-                    <span className="w-2 h-2 bg-blue-600 rounded-full"></span>
-                    Analysis Reasoning
-                  </p>
-                  <p className="text-sm text-slate-700 leading-relaxed">
-                    {analysisData.analysis.reasoning}
-                  </p>
+                  <div className="md:col-span-2 space-y-6">
+                    <div>
+                      <h3 className="text-lg font-bold text-slate-800 mb-3 flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full bg-blue-500"></div>{" "}
+                        AI Reasoning
+                      </h3>
+                      <p className="text-slate-600 leading-relaxed bg-blue-50/50 p-5 rounded-xl border border-blue-100">
+                        {analysisData.analysis.reasoning}
+                      </p>
+                    </div>
+
+                    <div>
+                      <h3 className="text-lg font-bold text-slate-800 mb-3 flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full bg-green-500"></div>{" "}
+                        Recommended Actions
+                      </h3>
+                      <ul className="space-y-3">
+                        {analysisData.analysis.recommended_actions?.map(
+                          (action, i) => (
+                            <li
+                              key={i}
+                              className="flex gap-3 bg-white p-4 rounded-xl border border-slate-100 shadow-sm"
+                            >
+                              <span className="flex-shrink-0 w-6 h-6 bg-green-100 text-green-700 font-bold text-xs rounded-full flex items-center justify-center">
+                                {i + 1}
+                              </span>
+                              <span className="text-slate-700">{action}</span>
+                            </li>
+                          ),
+                        )}
+                      </ul>
+                    </div>
+                  </div>
                 </div>
 
-                {/* Recommended Actions */}
-                {analysisData.analysis.recommended_actions && analysisData.analysis.recommended_actions.length > 0 && (
-                  <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-lg p-5 border border-green-200">
-                    <p className="text-sm font-semibold text-slate-900 mb-4 flex items-center gap-2">
-                      <CheckCircle className="w-5 h-5 text-green-600" />
-                      Recommended Actions
-                    </p>
-                    <ul className="space-y-3">
-                      {analysisData.analysis.recommended_actions.map((action, index) => (
-                        <li key={index} className="flex items-start gap-3">
-                          <span className="flex-shrink-0 w-6 h-6 bg-white rounded-full flex items-center justify-center text-green-600 font-bold text-xs border-2 border-green-300 mt-0.5">
-                            {index + 1}
-                          </span>
-                          <span className="text-sm text-slate-700 leading-relaxed pt-0.5">{action}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
+                <div className="mt-10 pt-6 border-t border-slate-200 flex justify-end">
+                  <Button
+                    onClick={() => window.location.reload()}
+                    variant="outline"
+                  >
+                    Start New Assessment
+                  </Button>
+                </div>
               </div>
-            </div>
+            )}
           </div>
         )}
       </div>
