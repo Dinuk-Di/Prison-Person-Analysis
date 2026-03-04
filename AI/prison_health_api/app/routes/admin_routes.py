@@ -1,7 +1,7 @@
 from flask import Blueprint, request, jsonify
 from app.services.pdf_service import store_pdf_in_vector_db
 from app.services.rag_service import generate_health_profile
-from app.model import db, Inmate, SurveyAnswer, EmotionLog
+from app.model import db, Inmate, SurveyAnswer, EmotionLog, HealthProfileLog
 import os
 import json
 
@@ -56,11 +56,42 @@ def analyze_inmate():
     recent_answers = SurveyAnswer.query.filter_by(inmate_id=target_inmate_id).limit(10).all()
     survey_summary = "; ".join([f"Q: {a.question_text} A: {a.answer_text} (Voice: {a.voice_emotion})" for a in recent_answers])
     
+    # Fetch historical health profiles
+    past_logs = HealthProfileLog.query.filter_by(inmate_id=target_inmate_id).order_by(HealthProfileLog.timestamp.desc()).limit(3).all()
+    past_logs_summary = "None"
+    if past_logs:
+        summaries = []
+        for log in reversed(past_logs): # chronological order
+            summaries.append(f"Date: {log.timestamp.strftime('%Y-%m-%d %H:%M')}, Risk: {log.risk_level}, "
+                             f"Conditions: {log.suspected_conditions}, Progress: {log.progress_indicator}")
+        past_logs_summary = "\n".join(summaries)
+    
     # Call RAG Service
-    analysis_json = generate_health_profile(inmate, emotion_str, survey_summary)
+    analysis_json = generate_health_profile(inmate, emotion_str, survey_summary, past_logs_summary)
     
     # Save the report string to DB, so we don't have to keep querying the LLM
     inmate.final_llm_report = json.dumps(analysis_json)
+    
+    # Create a new HealthProfileLog entry
+    new_log = HealthProfileLog(
+        inmate_id=target_inmate_id,
+        risk_level=analysis_json.get("risk_level", "Unknown"),
+        suspected_conditions=json.dumps(analysis_json.get("suspected_conditions", [])),
+        recommended_actions=json.dumps(analysis_json.get("recommended_actions", [])),
+        urgent_alert=analysis_json.get("urgent_alert", False),
+        reasoning=analysis_json.get("reasoning", ""),
+        progress_indicator=analysis_json.get("progress_indicator", "Initial")
+    )
+    db.session.add(new_log)
     db.session.commit()
     
-    return jsonify({"analysis": analysis_json})
+    past_logs_data = []
+    if past_logs:
+        for log in past_logs:
+            past_logs_data.append({
+                "date": log.timestamp.strftime('%Y-%m-%d %H:%M'),
+                "risk_level": log.risk_level,
+                "progress_indicator": log.progress_indicator
+            })
+    
+    return jsonify({"analysis": analysis_json, "history": past_logs_data})

@@ -15,6 +15,7 @@ class HealthProfile(BaseModel):
     recommended_actions: List[str] = Field(description="Actionable steps for prison staff")
     urgent_alert: bool = Field(description="True if immediate medical intervention is required, else False")
     reasoning: str = Field(description="A brief summary explaining why this risk level was assigned")
+    progress_indicator: str = Field(description="Tracking value comparing with previous profile: Improved, Stable, or Regressed. Use 'Initial' if no previous history.")
 
 
 llm = ChatOpenAI(
@@ -27,7 +28,7 @@ structured_llm = llm.with_structured_output(HealthProfile)
 
 PERSIST_DIRECTORY = "./chroma_db"
 
-def generate_health_profile(inmate_data, emotion_history, survey_summary):
+def generate_health_profile(inmate_data, emotion_history, survey_summary, previous_profiles_str="None"):
     try:
         embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
         vector_db = Chroma(persist_directory=PERSIST_DIRECTORY, embedding_function=embeddings)
@@ -46,7 +47,6 @@ def generate_health_profile(inmate_data, emotion_history, survey_summary):
         You are an AI Prison Health Assistant. Analyze the inmate's profile based on the data provided.
         
         INMATE INFO:
-        Name: {name}
         Age: {age}
         Gender: {gender}
         Crime: {crime}
@@ -62,23 +62,24 @@ def generate_health_profile(inmate_data, emotion_history, survey_summary):
         
         SELF-REPORTED SYMPTOMS & VOICE EMOTION (Survey):
         {survey}
+        PREVIOUS HEALTH PROFILES (History):
+        {previous_profiles}
         
         MEDICAL GUIDELINES (Retrieved Context):
         {context}
         
         TASK:
-        Analyze all the inputs (especially the correlation between what they said, their voice emotion, and their initial visual expression + prescription) and generate a health profile based strictly on the schema provided.
+        Analyze all the inputs (especially the correlation between what they said, their voice emotion, and their initial visual expression + prescription) and generate a health profile.
+        Compare current status against `PREVIOUS HEALTH PROFILES` to determine the `progress_indicator`.
+        Provide output based strictly on the schema provided.
         """
         
         prompt = PromptTemplate(
             template=template,
-            input_variables=["name", "age", "gender", "crime", "visual_emotion", "ocr_prescription", "emotions", "survey", "context"]
-        )
-        print("Prompt Template:", prompt)   
+            input_variables=["age", "gender", "crime", "visual_emotion", "ocr_prescription", "emotions", "survey", "previous_profiles", "context"]
+        )   
         chain = prompt | structured_llm
-        inmate_name = getattr(inmate_data, 'name', 'Unknown Inmate')
         response_obj = chain.invoke({
-            "name": inmate_name,
             "age": getattr(inmate_data, 'age', 'N/A'),
             "gender": getattr(inmate_data, 'gender', 'Unknown'),
             "crime": getattr(inmate_data, 'crime_details', 'N/A'),
@@ -86,6 +87,7 @@ def generate_health_profile(inmate_data, emotion_history, survey_summary):
             "ocr_prescription": getattr(inmate_data, 'ocr_prescription', 'None'),
             "emotions": emotion_history,
             "survey": survey_summary,
+            "previous_profiles": previous_profiles_str,
             "context": context_text
         })
         return response_obj.model_dump()
@@ -98,5 +100,6 @@ def generate_health_profile(inmate_data, emotion_history, survey_summary):
             "suspected_conditions": [],
             "recommended_actions": ["System Error - Manual Review Required"],
             "urgent_alert": False,
-            "reasoning": str(e)
+            "reasoning": str(e),
+            "progress_indicator": "Error"
         }

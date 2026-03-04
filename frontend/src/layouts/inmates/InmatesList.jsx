@@ -111,46 +111,79 @@ export default function InmatesList() {
                 {/* Final AI Generated Report */}
                 <div className="bg-slate-50 p-6 rounded-xl border border-slate-200">
                     <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2 mb-6">
-                        <BarChart3 className="w-5 h-5 text-indigo-500"/> Retrospective Health Analysis
+                        <BarChart3 className="w-5 h-5 text-indigo-500"/> Retrospective AI Health Timelines
                     </h3>
 
-                    {historyData.report ? (
-                        <div className="space-y-6">
-                            <div className="bg-white p-4 rounded-lg border border-slate-100 shadow-sm flex items-center justify-between">
-                                <p className="text-sm font-semibold text-slate-500 tracking-wider uppercase">Risk Assessment</p>
-                                <span className={`text-xl font-black ${
-                                    historyData.report.risk_level === 'High' ? 'text-red-600' :
-                                    historyData.report.risk_level === 'Medium' ? 'text-orange-500' :
-                                    'text-emerald-500'
-                                }`}>
-                                    {historyData.report.risk_level}
-                                </span>
-                            </div>
+                    {historyData.reports && historyData.reports.length > 0 ? (
+                        <div className="space-y-8 max-h-[600px] overflow-y-auto pr-2">
+                            {historyData.reports.map((reportItem, idx) => (
+                                <div key={idx} className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm relative">
+                                    <div className="absolute top-0 right-0 bg-indigo-100 text-indigo-800 px-3 py-1 rounded-bl-lg rounded-tr-xl text-xs font-bold">
+                                        {reportItem.timestamp || `Assessment #${idx + 1}`}
+                                    </div>
+                                    <h4 className="font-bold text-slate-800 mb-4 pr-32">
+                                        Analysis Record
+                                        {reportItem.progress_indicator && (
+                                            <span className="ml-3 text-xs font-semibold px-2 py-1 bg-blue-50 text-blue-700 rounded-md border border-blue-200">
+                                                Trend: {reportItem.progress_indicator}
+                                            </span>
+                                        )}
+                                    </h4>
+                                    
+                                    <div className="space-y-4">
+                                        <div className="bg-slate-50 p-3 rounded-lg border border-slate-100 flex items-center justify-between">
+                                            <p className="text-xs font-semibold text-slate-500 tracking-wider uppercase">Risk Assessment</p>
+                                            <span className={`text-lg font-black ${
+                                                reportItem.risk_level === 'High' ? 'text-red-600' :
+                                                reportItem.risk_level === 'Medium' ? 'text-orange-500' :
+                                                'text-emerald-500'
+                                            }`}>
+                                                {reportItem.risk_level}
+                                            </span>
+                                        </div>
 
-                            <div className="bg-white p-4 rounded-lg border border-slate-100 shadow-sm">
-                                <p className="text-sm font-semibold text-slate-500 tracking-wider uppercase mb-2">Likely Conditions</p>
-                                <div className="flex flex-wrap gap-2">
-                                    {historyData.report.suspected_conditions?.map((c, i) => (
-                                        <span key={i} className="px-3 py-1 bg-slate-100 border border-slate-200 rounded-md text-sm font-medium text-slate-700">{c}</span>
-                                    ))}
-                                </div>
-                            </div>
-                            
-                            <div className="bg-white p-4 rounded-lg border border-slate-100 shadow-sm">
-                                <p className="text-sm font-semibold text-slate-500 tracking-wider uppercase mb-2">AI Reasoning</p>
-                                <p className="text-slate-600 text-sm leading-relaxed">
-                                    {historyData.report.reasoning}
-                                </p>
-                            </div>
+                                        <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
+                                            <p className="text-xs font-semibold text-slate-500 tracking-wider uppercase mb-2">Likely Conditions</p>
+                                            <div className="flex flex-wrap gap-2">
+                                                {reportItem.suspected_conditions?.length > 0 ? (
+                                                    reportItem.suspected_conditions.map((c, i) => (
+                                                        <span key={i} className="px-2 py-1 bg-white border border-slate-200 rounded text-xs font-medium text-slate-700">{c}</span>
+                                                    ))
+                                                ) : (
+                                                    <span className="text-xs text-slate-400">None</span>
+                                                )}
+                                            </div>
+                                        </div>
+                                        
+                                        <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
+                                            <p className="text-xs font-semibold text-slate-500 tracking-wider uppercase mb-2">AI Reasoning</p>
+                                            <p className="text-slate-600 text-xs leading-relaxed">
+                                                {reportItem.reasoning || "No reasoning provided."}
+                                            </p>
+                                        </div>
 
-                            {historyData.report.urgent_alert && (
-                                <div className="bg-red-50 text-red-700 border border-red-200 p-4 rounded-lg text-sm font-bold flex items-center gap-2">
-                                    <Activity className="w-5 h-5 animate-pulse" /> Urgent Medical Intervention Flagged
+                                        {reportItem.recommended_actions?.length > 0 && (
+                                            <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
+                                                <p className="text-xs font-semibold text-slate-500 tracking-wider uppercase mb-2">Action Plan</p>
+                                                <ul className="list-disc pl-4 space-y-1">
+                                                    {reportItem.recommended_actions.map((act, i) => (
+                                                        <li key={i} className="text-xs text-slate-600">{act}</li>
+                                                    ))}
+                                                </ul>
+                                            </div>
+                                        )}
+
+                                        {reportItem.urgent_alert && (
+                                            <div className="bg-red-50 text-red-700 border border-red-200 p-3 rounded-lg text-xs font-bold flex items-center gap-2">
+                                                <Activity className="w-4 h-4 animate-pulse" /> Urgent Medical Intervention Flagged
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
-                            )}
+                            ))}
                         </div>
                     ) : (
-                        <p className="text-sm text-slate-500">Analysis generation failed or not enough data.</p>
+                        <p className="text-sm text-slate-500 text-center py-6">No historical AI analysis records found.</p>
                     )}
                 </div>
             </div>

@@ -11,17 +11,65 @@ inmate_bp = Blueprint('inmate', __name__)
 def get_questions():
     return jsonify({"questions": MEDICAL_QUESTIONS})
 
+@inmate_bp.route('/lookup', methods=['GET'])
+def lookup_inmate():
+    name = request.args.get('name')
+    nic = request.args.get('nic')
+    
+    inmate = None
+    if nic:
+        inmate = Inmate.query.filter_by(nic=nic).first()
+    elif name:
+        inmate = Inmate.query.filter_by(name=name).first()
+        
+    if inmate:
+        return jsonify({
+            "exists": True,
+            "inmate": {
+                "id": inmate.id,
+                "name": inmate.name,
+                "nic": inmate.nic,
+                "address": inmate.address,
+                "tel_no": inmate.tel_no,
+                "crime_details": inmate.crime_details,
+                "age": inmate.age,
+                "gender": inmate.gender
+            }
+        }), 200
+    return jsonify({"exists": False}), 200
+
 @inmate_bp.route('/register', methods=['POST'])
 def register_inmate():
     data = request.json
-    # incremental inmate id
-    inmate_id = max([i.id for i in Inmate.query.all()]) + 1 if Inmate.query.all() else 1
     name = data.get('name')
+    nic = data.get('nic')
+    address = data.get('address')
+    tel_no = data.get('tel_no')
+    crime_details = data.get('crime_details')
     age = data.get('age')
     gender = data.get('gender')
-    if Inmate.query.get(inmate_id):
-        return jsonify({"error": "Inmate ID already exists"}), 400
-    new_inmate = Inmate(id=inmate_id, name=name, age=age, gender=gender)
+    
+    # Check if inmate exists by NIC or Name
+    existing_inmate = None
+    if nic:
+        existing_inmate = Inmate.query.filter_by(nic=nic).first()
+    if not existing_inmate and name:
+        existing_inmate = Inmate.query.filter_by(name=name).first()
+        
+    if existing_inmate:
+        # Update existing record
+        existing_inmate.age = age
+        existing_inmate.gender = gender
+        existing_inmate.nic = nic
+        existing_inmate.address = address
+        existing_inmate.tel_no = tel_no
+        existing_inmate.crime_details = crime_details
+        db.session.commit()
+        return jsonify({"message": "Inmate updated successfully", "id": existing_inmate.id}), 200
+        
+    # incremental inmate id
+    inmate_id = max([i.id for i in Inmate.query.all()]) + 1 if Inmate.query.all() else 1
+    new_inmate = Inmate(id=inmate_id, name=name, nic=nic, address=address, tel_no=tel_no, crime_details=crime_details, age=age, gender=gender)
     db.session.add(new_inmate)
     db.session.commit()
     return jsonify({"message": "Inmate registered successfully"}), 201
@@ -93,12 +141,23 @@ def analyze_initial_image():
     gender_label, gender_conf = analyze_gender(temp_path)
     emotion_label, emotion_conf = analyze_image_emotion(temp_path)
     
-    inmate.gender = gender_label
+    # Validation against registered gender
+    registered_gender = inmate.gender.lower() if inmate.gender else ""
+    detected_gender = gender_label.lower() if gender_label else ""
+    gender_mismatch = registered_gender != detected_gender and registered_gender != ""
+    
+    # We still save the original registered gender as the source of truth,
+    # but we can save the visual emotion
     inmate.visual_emotion = emotion_label
     db.session.commit()
     
     os.remove(temp_path)
-    return jsonify({"gender": gender_label, "emotion": emotion_label}), 200
+    return jsonify({
+        "gender": gender_label, 
+        "emotion": emotion_label, 
+        "gender_mismatch": gender_mismatch,
+        "mismatch_warning": f"Warning: Detected gender ({gender_label}) does not match registered gender ({inmate.gender})" if gender_mismatch else None
+    }), 200
 
 @inmate_bp.route('/extract_prescription', methods=['POST'])
 def extract_prescription():

@@ -40,20 +40,22 @@ def get_inmate_history(inmate_id):
     emotion_str = ", ".join([e.predicted_emotion for e in recent_emotions])
     survey_summary = "; ".join([f"Q: {a.question_text} A: {a.answer_text} (Voice: {a.voice_emotion})" for a in recent_answers])
     
-    # Check database for a previously generated LLM report
-    if inmate.final_llm_report:
-        try:
-            analysis_json = json.loads(inmate.final_llm_report)
-        except Exception:
-            analysis_json = {"error": "Failed to parse saved LLM report"}
-    else:
-        # Fallback to generating it if it doesn't exist
-        analysis_json = generate_health_profile(inmate, emotion_str, survey_summary)
-        try:
-            inmate.final_llm_report = json.dumps(analysis_json)
-            db.session.commit()
-        except Exception:
-            pass
+    from app.model import HealthProfileLog
+    
+    # Query all historical health profiles
+    health_logs = HealthProfileLog.query.filter_by(inmate_id=inmate_id).order_by(HealthProfileLog.timestamp.asc()).all()
+    
+    reports_list = []
+    for log in health_logs:
+        reports_list.append({
+            "risk_level": log.risk_level,
+            "suspected_conditions": json.loads(log.suspected_conditions) if log.suspected_conditions else [],
+            "recommended_actions": json.loads(log.recommended_actions) if log.recommended_actions else [],
+            "urgent_alert": log.urgent_alert,
+            "reasoning": log.reasoning,
+            "progress_indicator": log.progress_indicator,
+            "timestamp": log.timestamp.strftime("%Y-%m-%d %H:%M:%S") if log.timestamp else None
+        })
     
     return jsonify({
         "id": inmate.id,
@@ -63,5 +65,5 @@ def get_inmate_history(inmate_id):
         "initial_visual_emotion": inmate.visual_emotion,
         "ocr_prescription": inmate.ocr_prescription,
         "qa_history": answers_list,
-        "report": analysis_json
+        "reports": reports_list
     }), 200

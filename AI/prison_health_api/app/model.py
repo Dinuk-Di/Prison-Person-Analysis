@@ -7,6 +7,10 @@ class Inmate(db.Model):
     __tablename__ = 'inmates'
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
+    nic = db.Column(db.String(20))
+    address = db.Column(db.String(200))
+    tel_no = db.Column(db.String(20))
+    crime_details = db.Column(db.Text)
     age = db.Column(db.Integer)
     gender = db.Column(db.String(20)) # 'Male' or 'Female' (for model selection)
     visual_emotion = db.Column(db.String(50))
@@ -42,3 +46,17 @@ class Staff(db.Model):
     department = db.Column(db.String(100))
     contact = db.Column(db.String(100))
     joined_date = db.Column(db.DateTime, default=datetime.utcnow)
+
+class HealthProfileLog(db.Model):
+    __tablename__ = 'health_profile_logs'
+    id = db.Column(db.Integer, primary_key=True)
+    inmate_id = db.Column(db.Integer, db.ForeignKey('inmates.id'), nullable=False)
+    risk_level = db.Column(db.String(50))
+    suspected_conditions = db.Column(db.Text) # Stored as JSON string
+    recommended_actions = db.Column(db.Text) # Stored as JSON string
+    urgent_alert = db.Column(db.Boolean, default=False)
+    reasoning = db.Column(db.Text)
+    progress_indicator = db.Column(db.String(50)) # e.g., 'Improved', 'Stable', 'Regressed'
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    inmate = db.relationship('Inmate', backref=db.backref('health_profiles', lazy=True))

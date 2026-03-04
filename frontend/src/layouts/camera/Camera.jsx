@@ -39,13 +39,18 @@ export default function Camera() {
   const [username, setUsername] = useState("");
   const [age, setAge] = useState("");
   const [gender, setGender] = useState("Male");
-  
+  const [nic, setNic] = useState("");
+  const [address, setAddress] = useState("");
+  const [telNo, setTelNo] = useState("");
+  const [crimeDetails, setCrimeDetails] = useState("");
+
   const localVideoRef = useRef(null);
 
   // Step 1: Initial Image
   const [initialImage, setInitialImage] = useState(null);
   const [detectedGender, setDetectedGender] = useState("");
   const [detectedEmotion, setDetectedEmotion] = useState("");
+  const [genderMismatchWarning, setGenderMismatchWarning] = useState(null);
   const [isAnalyzingImage, setIsAnalyzingImage] = useState(false);
 
   // Step 2: Documents
@@ -98,26 +103,49 @@ export default function Camera() {
     };
   }, []);
 
+  const handleLookup = async (field, value) => {
+    if (!value) return;
+    try {
+      const res = await axiosInstance.get(`http://127.0.0.1:5010/api/inmate/lookup?${field}=${value}`);
+      if (res.data.exists && res.data.inmate) {
+        const data = res.data.inmate;
+        if (field !== "name") setUsername(data.name || "");
+        if (field !== "nic") setNic(data.nic || "");
+        setAge(data.age || "");
+        setAddress(data.address || "");
+        setTelNo(data.tel_no || "");
+        setCrimeDetails(data.crime_details || "");
+        setGender(data.gender || "Male");
+        toast.success(`Found existing inmate: ${data.name}. Fields auto-filled.`);
+      }
+    } catch (err) {
+      console.error("Lookup failed:", err);
+    }
+  };
+
   const handleRegisterAndCapture = async () => {
     if (!username || !age) {
       toast.error("Please enter username and age.");
       return;
     }
 
-    // 1. Register
+    // 1. Register or Update
     try {
       await axiosInstance.post("http://127.0.0.1:5010/api/inmate/register", {
         name: username,
         age: parseInt(age),
         gender,
+        nic,
+        address,
+        tel_no: telNo,
+        crime_details: crimeDetails
       });
-      toast.success("Registered successfully.");
+      toast.success("Inmate record saved.");
     } catch (error) {
       if (error.response && error.response.status !== 400) {
-        toast.error("Failed to register.");
+        toast.error("Failed to save inmate record.");
         return;
       }
-      // If 400, it might mean user already exists, which is fine for demo purposes
     }
 
     // 2. Capture and Analyze
@@ -142,10 +170,17 @@ export default function Camera() {
       try {
         const res = await axiosInstance.post(
           "http://127.0.0.1:5010/api/inmate/analyze_initial_image",
-          formData, { headers: { 'Content-Type': 'multipart/form-data' } }
+          formData,
+          { headers: { "Content-Type": "multipart/form-data" } },
         );
         setDetectedGender(res.data.gender);
         setDetectedEmotion(res.data.emotion);
+        if (res.data.mismatch_warning) {
+          setGenderMismatchWarning(res.data.mismatch_warning);
+          toast.error(res.data.mismatch_warning, { duration: 5000 });
+        } else {
+          setGenderMismatchWarning(null);
+        }
         toast.success("Image analyzed successfully!");
       } catch (err) {
         toast.error("Failed to analyze image.");
@@ -164,7 +199,8 @@ export default function Camera() {
     try {
       const res = await axiosInstance.post(
         "http://127.0.0.1:5010/api/inmate/extract_prescription",
-        formData, { headers: { 'Content-Type': 'multipart/form-data' } }
+        formData,
+        { headers: { "Content-Type": "multipart/form-data" } },
       );
       setExtractedOcrText(res.data.extracted_text);
       toast.success("Prescription OCR extracted!");
@@ -183,7 +219,8 @@ export default function Camera() {
     try {
       await axiosInstance.post(
         "http://127.0.0.1:5010/api/admin/upload_medical_record",
-        formData, { headers: { 'Content-Type': 'multipart/form-data' } }
+        formData,
+        { headers: { "Content-Type": "multipart/form-data" } },
       );
       toast.success("PDF record uploaded!");
     } catch (error) {
@@ -240,12 +277,28 @@ export default function Camera() {
   };
 
   useEffect(() => {
-    if (step === 3 && questions.length > 0 && !currentVoiceEmotion && !isProcessingAnswer) {
-      if (!isRecordingAnswer && (!mediaRecorderRef.current || mediaRecorderRef.current.state === "inactive")) {
+    if (
+      step === 3 &&
+      questions.length > 0 &&
+      !currentVoiceEmotion &&
+      !isProcessingAnswer
+    ) {
+      if (
+        !isRecordingAnswer &&
+        (!mediaRecorderRef.current ||
+          mediaRecorderRef.current.state === "inactive")
+      ) {
         startAudioRecording();
       }
     }
-  }, [step, questions, currentQuestionIndex, currentVoiceEmotion, isProcessingAnswer, isRecordingAnswer]);
+  }, [
+    step,
+    questions,
+    currentQuestionIndex,
+    currentVoiceEmotion,
+    isProcessingAnswer,
+    isRecordingAnswer,
+  ]);
 
   const analyzeAnswer = async () => {
     if (!currentAnswerText) {
@@ -271,7 +324,8 @@ export default function Camera() {
     try {
       const res = await axiosInstance.post(
         "http://127.0.0.1:5010/api/inmate/analyze_voice",
-        formData, { headers: { 'Content-Type': 'multipart/form-data' } }
+        formData,
+        { headers: { "Content-Type": "multipart/form-data" } },
       );
       toast.success(`Voice Emotion Detected: ${res.data.voice_emotion}`);
       setCurrentVoiceEmotion(res.data.voice_emotion);
@@ -362,27 +416,62 @@ export default function Camera() {
                 label="Username"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
+                onBlur={(e) => handleLookup("name", e.target.value)}
                 placeholder="e.g. JohnDoe"
               />
+              <div className="grid grid-cols-2 gap-4">
+                <Input
+                  label="Age"
+                  type="number"
+                  value={age}
+                  onChange={(e) => setAge(e.target.value)}
+                  placeholder="e.g. 30"
+                />
+                <Input
+                  label="NIC Number"
+                  value={nic}
+                  onChange={(e) => setNic(e.target.value)}
+                  onBlur={(e) => handleLookup("nic", e.target.value)}
+                  placeholder="e.g. 123456789V"
+                />
+              </div>
               <Input
-                label="Age"
-                type="number"
-                value={age}
-                onChange={(e) => setAge(e.target.value)}
-                placeholder="e.g. 30"
+                label="Home Address"
+                value={address}
+                onChange={(e) => setAddress(e.target.value)}
+                placeholder="e.g. 123 Main St"
               />
-              <div>
+              <div className="grid grid-cols-2 gap-4">
+                <Input
+                  label="Phone Number"
+                  value={telNo}
+                  onChange={(e) => setTelNo(e.target.value)}
+                  placeholder="e.g. +1 555-0100"
+                />
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-2">
+                    Gender
+                  </label>
+                  <select
+                    value={gender}
+                    onChange={(e) => setGender(e.target.value)}
+                    className="w-full px-3 py-2 border-2 border-slate-300 rounded-lg focus:border-blue-500 focus:outline-none"
+                  >
+                    <option>Male</option>
+                    <option>Female</option>
+                  </select>
+                </div>
+              </div>
+              <div className="flex flex-col">
                 <label className="block text-sm font-semibold text-slate-700 mb-2">
-                  Gender Option
+                  Crime Details
                 </label>
-                <select
-                  value={gender}
-                  onChange={(e) => setGender(e.target.value)}
-                  className="w-full px-3 py-2 border-2 border-slate-300 rounded-lg focus:border-blue-500 focus:outline-none"
-                >
-                  <option>Male</option>
-                  <option>Female</option>
-                </select>
+                <textarea
+                  value={crimeDetails}
+                  onChange={(e) => setCrimeDetails(e.target.value)}
+                  placeholder="Brief description of the incarcerated offense..."
+                  className="w-full px-3 py-2 border-2 border-slate-300 rounded-lg focus:border-blue-500 focus:outline-none min-h-[80px]"
+                />
               </div>
 
               <div className="pt-4 border-t border-slate-100">
@@ -446,10 +535,20 @@ export default function Camera() {
                           {detectedEmotion}
                         </span>
                       </p>
+                      {genderMismatchWarning && (
+                        <div className="mt-2 text-xs text-red-600 bg-red-100 p-2 rounded-md border border-red-200 flex items-start gap-1">
+                          <AlertCircle className="w-4 h-4 shrink-0" />
+                          <span>{genderMismatchWarning}</span>
+                        </div>
+                      )}
                     </div>
                   </div>
-                  <Button onClick={() => setStep(2)} className="bg-slate-900 text-white hover:bg-slate-800 self-end">
-                    Proceed to Medical Documents <ChevronRight className="w-4 h-4 ml-2" />
+                  <Button
+                    onClick={() => setStep(2)}
+                    className="bg-slate-900 text-white hover:bg-slate-800 self-end"
+                  >
+                    Proceed to Medical Documents{" "}
+                    <ChevronRight className="w-4 h-4 ml-2" />
                   </Button>
                 </div>
               )}
@@ -575,7 +674,8 @@ export default function Camera() {
                     </div>
                   ) : audioBlob ? (
                     <div className="flex-1 py-3 bg-slate-50 text-slate-500 font-semibold rounded-lg border border-slate-200 flex items-center justify-center gap-2">
-                       <CheckCircle className="w-4 h-4 text-green-500"/> Audio Recorded
+                      <CheckCircle className="w-4 h-4 text-green-500" /> Audio
+                      Recorded
                     </div>
                   ) : (
                     <div className="flex-1 py-3 bg-slate-50 text-slate-500 font-semibold rounded-lg border border-slate-200 flex items-center justify-center gap-2">
@@ -638,7 +738,8 @@ export default function Camera() {
               ) : (
                 <>
                   <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 mr-auto">
-                    Detected Voice Emotion: <span className="text-lg">{currentVoiceEmotion}</span>
+                    Detected Voice Emotion:{" "}
+                    <span className="text-lg">{currentVoiceEmotion}</span>
                   </div>
                   <Button
                     size="lg"
@@ -710,6 +811,12 @@ export default function Camera() {
                           </span>
                         )}
                       </div>
+                      <div className="mt-3 pt-3 border-t border-slate-200">
+                         <p className="text-xs text-slate-500 font-semibold uppercase mb-1">Tracking Progress</p>
+                         <div className="inline-flex items-center px-2.5 py-1 rounded-md text-sm font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                            {analysisData.analysis.progress_indicator || "Initial"}
+                         </div>
+                      </div>
                     </div>
 
                     <div className="bg-slate-50 rounded-xl p-5 border border-slate-200">
@@ -763,6 +870,26 @@ export default function Camera() {
                         )}
                       </ul>
                     </div>
+
+                    {analysisData.history && analysisData.history.length > 0 && (
+                      <div>
+                        <h3 className="text-lg font-bold text-slate-800 mb-3 flex items-center gap-2">
+                          <div className="w-2 h-2 rounded-full bg-purple-500"></div>{" "}
+                          Historical Progress
+                        </h3>
+                        <div className="space-y-3">
+                          {analysisData.history.map((log, i) => (
+                             <div key={i} className="flex flex-col gap-1 bg-slate-50 p-4 rounded-xl border border-slate-200">
+                                <div className="flex justify-between items-center">
+                                   <span className="text-sm font-bold text-slate-700">{log.date}</span>
+                                   <span className="text-xs font-semibold px-2 py-1 bg-slate-200 rounded text-slate-600">{log.progress_indicator}</span>
+                                </div>
+                                <p className="text-sm text-slate-600">Risk Level: <strong className={log.risk_level === "High" ? "text-red-600" : log.risk_level === "Medium" ? "text-orange-500" : "text-emerald-500"}>{log.risk_level}</strong></p>
+                             </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
 

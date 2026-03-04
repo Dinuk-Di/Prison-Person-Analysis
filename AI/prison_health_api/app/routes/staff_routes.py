@@ -18,14 +18,44 @@ def get_staff():
         })
     return jsonify({"staff": result}), 200
 
+@staff_bp.route('/lookup', methods=['GET'])
+def lookup_staff():
+    name = request.args.get('name')
+    if not name:
+        return jsonify({"exists": False}), 200
+        
+    staff = Staff.query.filter_by(name=name).first()
+    if staff:
+        return jsonify({
+            "exists": True,
+            "staff": {
+                "id": staff.id,
+                "name": staff.name,
+                "role": staff.role,
+                "department": staff.department,
+                "contact": staff.contact
+            }
+        }), 200
+    return jsonify({"exists": False}), 200
+
 @staff_bp.route('/', methods=['POST'])
 def add_staff():
     data = request.json
     if not data or not data.get('name') or not data.get('role'):
         return jsonify({"error": "Name and role are required"}), 400
         
+    name = data.get('name')
+    existing_staff = Staff.query.filter_by(name=name).first()
+    
+    if existing_staff:
+        existing_staff.role = data.get('role')
+        existing_staff.department = data.get('department', '')
+        existing_staff.contact = data.get('contact', '')
+        db.session.commit()
+        return jsonify({"message": "Staff member updated successfully", "id": existing_staff.id}), 200
+        
     new_staff = Staff(
-        name=data.get('name'),
+        name=name,
         role=data.get('role'),
         department=data.get('department', ''),
         contact=data.get('contact', '')
