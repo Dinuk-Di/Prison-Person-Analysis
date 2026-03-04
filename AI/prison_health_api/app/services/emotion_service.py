@@ -92,11 +92,11 @@ def analyze_image_emotions(image_path):
     Analyzes a single image using YOLO Detection -> Emotion Classification pipeline.
     """
     if not person_model or not emotion_model:
-        return "Neutral", 0.0
+        return "No Model", 0.0
 
     frame = cv2.imread(image_path)
     if frame is None:
-        return "Neutral", 0.0
+        return "No Frame", 0.0
 
     person_results = person_model(frame, classes=[0], verbose=False)
     for p_result in person_results:

@@ -12,6 +12,8 @@ def upload_pdf():
     if 'file' not in request.files:
         return jsonify({"error": "No file"}), 400
     
+    inmate_id = request.form.get('inmate_id')
+    
     # Get ALL files sent with the key 'file'
     files = request.files.getlist('file') 
     
@@ -24,7 +26,7 @@ def upload_pdf():
         file.save(save_path)
         
         # Process each file (The new batched service will handle the rate limits)
-        success = store_pdf_in_vector_db(save_path)
+        success = store_pdf_in_vector_db(save_path, inmate_id)
         if success:
             saved_files.append(file.filename)
             

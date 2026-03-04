@@ -17,16 +17,21 @@ def get_embeddings():
     """
     return HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
 
-def store_pdf_in_vector_db(file_path):
+def store_pdf_in_vector_db(file_path, inmate_id=None):
     try:
         # 1. Load the PDF
         loader = PyPDFLoader(file_path)
         pages = loader.load_and_split()
         
         # 2. Split text into chunks
-        # Adjusted chunk size slightly for MiniLM (smaller context window than Gemini)
         text_splitter = RecursiveCharacterTextSplitter(chunk_size=800, chunk_overlap=150)
         texts = text_splitter.split_documents(pages)
+        
+        # Add metadata
+        if inmate_id:
+            for doc in texts:
+                doc.metadata['inmate_id'] = str(inmate_id)
+                
         print(f"Total chunks created: {len(texts)}")
         
         # 3. Initialize Embeddings and Vector DB

@@ -6,7 +6,7 @@ WORKDIR /app
 
 # Install system dependencies required for OpenCV and audio processing
 RUN apt-get update && apt-get install -y \
-    libgl1-mesa-glx \
+    libgl1 \
     libglib2.0-0 \
     ffmpeg \
     && rm -rf /var/lib/apt/lists/*
@@ -15,9 +15,9 @@ RUN apt-get update && apt-get install -y \
 COPY requirements.txt .
 
 # Install Python dependencies
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --default-timeout=100 --no-cache-dir -r requirements.txt
 # Add librosa since it was manually installed but not in requirements
-RUN pip install --no-cache-dir librosa
+RUN pip install --default-timeout=100 --no-cache-dir librosa
 
 # Copy the rest of the application
 COPY . .

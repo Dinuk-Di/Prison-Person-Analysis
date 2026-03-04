@@ -9,7 +9,6 @@ services:
       - "5010:5010"
     volumes:
       - ./AI/prison_health_api:/app
-      # Exclude venv from volume mapping
       - /app/venv
     environment:
       - FLASK_APP=run.py
@@ -26,6 +25,7 @@ services:
     volumes:
       - ./frontend:/app
       - /app/node_modules
+    command: npm run dev -- --host 0.0.0.0 --port 3000
     environment:
       - VITE_BASE_URL=http://localhost:5010
     depends_on:

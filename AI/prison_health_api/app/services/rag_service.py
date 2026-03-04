@@ -31,7 +31,14 @@ def generate_health_profile(inmate_data, emotion_history, survey_summary):
     try:
         embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
         vector_db = Chroma(persist_directory=PERSIST_DIRECTORY, embedding_function=embeddings)
-        retriever = vector_db.as_retriever(search_kwargs={"k": 3})
+        
+        search_kwargs = {"k": 3}
+        inmate_id = getattr(inmate_data, 'id', None)
+        if inmate_id:
+            search_kwargs["filter"] = {"inmate_id": str(inmate_id)}
+            
+        retriever = vector_db.as_retriever(search_kwargs=search_kwargs)
+        
         query = f"treatment guidelines for {survey_summary} and mental health interventions"
         relevant_docs = retriever.invoke(query)
         context_text = "\n\n".join([doc.page_content for doc in relevant_docs])
