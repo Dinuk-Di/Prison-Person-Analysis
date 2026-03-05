@@ -89,7 +89,8 @@ def extract_prescription_ocr(image_path):
 def analyze_voice_emotion(audio_path):
     try:
         model, feature_extractor = get_voice_model()
-        speech, _ = librosa.load(audio_path, sr=16000)
+        speech, sr = librosa.load(audio_path, sr=16000)
+        
         inputs = feature_extractor(speech, sampling_rate=16000, return_tensors="pt", padding=True)
         
         with torch.no_grad():

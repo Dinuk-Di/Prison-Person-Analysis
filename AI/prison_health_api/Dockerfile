@@ -15,9 +15,7 @@ RUN apt-get update && apt-get install -y \
 COPY requirements.txt .
 
 # Install Python dependencies
-RUN pip install --default-timeout=100 --no-cache-dir -r requirements.txt
-# Add librosa since it was manually installed but not in requirements
-RUN pip install --default-timeout=100 --no-cache-dir librosa
+RUN pip install --default-timeout=100 --no-cache-dir -r requirements.txt librosa
 
 # Copy the rest of the application
 COPY . .

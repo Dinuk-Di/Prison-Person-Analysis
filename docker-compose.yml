@@ -9,10 +9,9 @@ services:
       - "5010:5010"
     volumes:
       - ./AI/prison_health_api:/app
-      - /app/venv
     environment:
       - FLASK_APP=run.py
-      - FLASK_ENV=development
+      - FLASK_DEBUG=1
     networks:
       - app-network
 
@@ -20,14 +19,16 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      target: development
     ports:
-      - "3000:3000"
+      - "3610:3610"
     volumes:
       - ./frontend:/app
       - /app/node_modules
-    command: npm run dev -- --host 0.0.0.0 --port 3000
     environment:
       - VITE_BASE_URL=http://localhost:5010
+      - WATCHPACK_POLLING=true
+      - CHOKIDAR_USEPOLLING=true
     depends_on:
       - backend
     networks:

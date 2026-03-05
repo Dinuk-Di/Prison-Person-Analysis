@@ -12,7 +12,7 @@ export default function Header({ onMenuClick, currentUser }) {
   ];
 
   return (
-    <header className="bg-white border-b border-gray-300 px-4 py-3 lg:px-6 lg:py-4 shadow-sm">
+    <header className="bg-white/80 backdrop-blur-xl border-b border-slate-200/80 px-4 py-3 lg:px-6 lg:py-4 z-40 sticky top-0">
       <div className="flex items-center justify-between">
         {/* Left Section */}
         <div className="flex items-center gap-4">
@@ -25,9 +25,9 @@ export default function Header({ onMenuClick, currentUser }) {
           </button>
 
           {/* System Status */}
-          <div className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-green-50 border border-green-200 rounded-lg">
-            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-            <span className="text-xs font-semibold text-green-700">System Online</span>
+          <div className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-emerald-50/50 border border-emerald-500/20 rounded-full shadow-sm">
+            <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.8)]"></div>
+            <span className="text-xs font-bold tracking-wide text-emerald-700 uppercase">Aegis Online</span>
           </div>
         </div>
 
@@ -72,16 +72,16 @@ export default function Header({ onMenuClick, currentUser }) {
           </div>
 
           {/* User Profile */}
-          <div className="flex items-center gap-3 pl-4 border-l border-gray-300">
+          <div className="flex items-center gap-3 pl-4 border-l border-slate-200">
             <div className="hidden sm:block text-right">
-              <p className="text-sm font-semibold text-gray-800">
+              <p className="text-sm font-bold text-slate-800 tracking-wide">
                 {currentUser?.name || "Admin"}
               </p>
-              <p className="text-xs text-gray-500 font-medium">{currentUser?.role || "User"}</p>
+              <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">{currentUser?.role || "System Lead"}</p>
             </div>
             <NavLink to="/profile">
-              <button className="w-10 h-10 bg-gradient-to-br from-slate-700 to-slate-900 rounded-full flex items-center justify-center text-white font-semibold hover:shadow-lg transition-all duration-200">
-                <User className="w-5 h-5" />
+              <button className="w-10 h-10 bg-gradient-to-tr from-cyan-500 to-blue-600 rounded-xl flex items-center justify-center text-white font-semibold shadow-lg shadow-cyan-500/30 hover:scale-105 transition-all duration-200 border border-white/20">
+                <User className="w-5 h-5 drop-shadow-md" />
               </button>
             </NavLink>
           </div>

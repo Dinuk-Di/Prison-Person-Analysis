@@ -369,10 +369,12 @@ export default function Camera() {
     <div className="min-h-screen bg-slate-50 py-8 px-4">
       <div className="max-w-5xl mx-auto space-y-8">
         {/* Header Setup */}
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
-          <h1 className="text-3xl font-bold text-slate-900 flex items-center gap-3">
-            <CameraIcon className="w-8 h-8 text-blue-600" />
-            Inmate Diagnostic Flow
+        <div className="bg-white/90 backdrop-blur-xl p-8 rounded-3xl shadow-xl shadow-slate-200/50 border border-slate-200/60">
+          <h1 className="text-3xl font-black tracking-tight text-slate-900 flex items-center gap-4">
+            <div className="p-3 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-2xl shadow-lg shadow-blue-500/30">
+                <CameraIcon className="w-8 h-8 text-white drop-shadow-md" />
+            </div>
+            AEGIS CORE Diagnostics
           </h1>
 
           {/* Stepper Progress Map */}
@@ -407,10 +409,10 @@ export default function Camera() {
 
         {/* STEP 1: IDENTITY & IMAGE */}
         {step === 1 && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-5">
-              <h2 className="text-xl font-bold flex items-center gap-2">
-                <User className="text-blue-600" /> Inmate Details
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div className="bg-white/90 backdrop-blur-xl p-8 rounded-3xl shadow-xl shadow-slate-200/40 border border-slate-200/60 space-y-6">
+              <h2 className="text-xl font-bold flex items-center gap-3 tracking-wide text-slate-800">
+                <User className="text-blue-600 w-6 h-6" /> Subject Registration
               </h2>
               <Input
                 label="Username"

@@ -1,5 +1,5 @@
-# Use an official Node runtime as a parent image
-FROM node:18-alpine
+# Build stage for production
+FROM node:18-alpine AS builder
 
 # Set the working directory
 WORKDIR /app
@@ -16,11 +16,31 @@ COPY . .
 # Build the Vite application
 RUN npm run build
 
+# Production stage
+FROM node:18-alpine AS production
+
+WORKDIR /app
+
 # Install serve to serve the static built application
 RUN npm install -g serve
 
-# Expose port used by serve
-EXPOSE 3000
+# Copy built assets from builder
+COPY --from=builder /app/dist ./dist
 
-# Command to run the frontend
-CMD ["serve", "-s", "dist", "-l", "3000"]
+# Expose port used by serve
+EXPOSE 3610
+
+# Command to run the frontend in production
+CMD ["serve", "-s", "dist", "-l", "3610"]
+
+# Development stage
+FROM node:18-alpine AS development
+
+WORKDIR /app
+
+COPY package*.json ./
+RUN npm install
+COPY . .
+
+EXPOSE 3610
+CMD ["npm", "run", "dev"]

@@ -195,14 +195,18 @@ export default function InmatesList() {
   // Directory View
   return (
     <div className="space-y-6">
-      <div className="bg-white rounded-xl shadow-sm p-6 border border-slate-200">
-        <h1 className="text-3xl font-bold text-slate-900 mb-2 flex items-center gap-3">
-          <History className="w-8 h-8 text-indigo-600" /> Inmate History Directory
+      <div className="bg-white/90 backdrop-blur-xl rounded-3xl shadow-xl shadow-slate-200/50 p-8 border border-slate-200/60">
+        <h1 className="text-3xl font-black tracking-tight text-slate-900 mb-2 flex items-center gap-4">
+          <div className="p-3 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl shadow-lg shadow-indigo-500/30">
+            <History className="w-8 h-8 text-white drop-shadow-md" />
+          </div>
+          AEGIS CORE Subject History
+
         </h1>
         <p className="text-slate-600">Review past mental health assessments and historical records.</p>
       </div>
 
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+      <div className="bg-white/90 backdrop-blur-xl rounded-3xl shadow-xl shadow-slate-200/40 p-8 border border-slate-200/60">
         {loading ? (
           <div className="p-8 text-center text-slate-500">Loading directory...</div>
         ) : inmates.length === 0 ? (

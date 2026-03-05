@@ -142,9 +142,22 @@ def analyze_initial_image():
     emotion_label, emotion_conf = analyze_image_emotion(temp_path)
     
     # Validation against registered gender
-    registered_gender = inmate.gender.lower() if inmate.gender else ""
-    detected_gender = gender_label.lower() if gender_label else ""
-    gender_mismatch = registered_gender != detected_gender and registered_gender != ""
+    registered_gender = inmate.gender.lower().strip() if inmate.gender else ""
+    detected_gender = gender_label.lower().strip() if gender_label else ""
+    
+    gender_mismatch = False
+    if registered_gender and detected_gender:
+        if registered_gender == "male":
+            # If registered is male, it must contain "male" but NOT "female"
+            if "female" in detected_gender or "male" not in detected_gender:
+                gender_mismatch = True
+        elif registered_gender == "female":
+            # If registered is female, it must contain "female"
+            if "female" not in detected_gender:
+                gender_mismatch = True
+        else:
+            if registered_gender not in detected_gender:
+                gender_mismatch = True
     
     # We still save the original registered gender as the source of truth,
     # but we can save the visual emotion
