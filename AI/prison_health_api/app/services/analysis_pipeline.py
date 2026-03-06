@@ -64,7 +64,14 @@ def extract_prescription_ocr(image_path):
     with open(image_path, "rb") as image_file:
         base64_image = base64.b64encode(image_file.read()).decode('utf-8')
     
-    url = "http://localhost:11434/api/generate"
+    # Connect to Ollama (respecting Docker configurations if present)
+    base_url = os.getenv("LLM_BASE_URL", "http://localhost:11434")
+    # Clean up any trailing /v1 if reused from OpenAI-style configs
+    if base_url.endswith("/v1"):
+        base_url = base_url[:-3]
+    
+    url = f"{base_url}/api/generate"
+    
     payload = {
         "model": "glm-ocr:latest",
         "prompt": "Extract all the text from this medical prescription. Output only the extracted text.",
