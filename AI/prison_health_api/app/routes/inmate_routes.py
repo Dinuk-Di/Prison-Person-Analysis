@@ -212,29 +212,34 @@ def extract_prescription():
 
 @inmate_bp.route('/analyze_voice', methods=['POST'])
 def analyze_voice():
-    username = request.form.get('Username')
-    question = request.form.get('question', '')
-    answer = request.form.get('answer', '')
-    
-    inmate = Inmate.query.filter_by(name=username).first()
-    if not inmate:
-        return jsonify({"error": "Inmate not found"}), 404
+    try:
+        username = request.form.get('Username')
+        question = request.form.get('question', '')
+        answer = request.form.get('answer', '')
         
-    emotion_label = "neutral"
-    if 'audio' in request.files:
-        audio = request.files['audio']
-        temp_path = os.path.join("uploads", audio.filename)
-        audio.save(temp_path)
-        emotion_label, conf = analyze_voice_emotion(temp_path)
-        os.remove(temp_path)
+        inmate = Inmate.query.filter_by(name=username).first()
+        if not inmate:
+            return jsonify({"error": "Inmate not found"}), 404
+            
+        emotion_label = "neutral"
+        if 'audio' in request.files:
+            audio = request.files['audio']
+            temp_path = os.path.join("uploads", audio.filename)
+            audio.save(temp_path)
+            emotion_label, conf = analyze_voice_emotion(temp_path)
+            print("Voice emotion detected:", emotion_label)
+            os.remove(temp_path)
+            
+        new_answer = SurveyAnswer(
+            inmate_id=inmate.id,
+            question_text=question,
+            answer_text=answer,
+            voice_emotion=emotion_label
+        )
+        db.session.add(new_answer)
+        db.session.commit()
         
-    new_answer = SurveyAnswer(
-        inmate_id=inmate.id,
-        question_text=question,
-        answer_text=answer,
-        voice_emotion=emotion_label
-    )
-    db.session.add(new_answer)
-    db.session.commit()
-    
-    return jsonify({"message": "Answer saved", "voice_emotion": emotion_label}), 200
+        return jsonify({"message": "Answer saved", "voice_emotion": emotion_label}), 200
+    except Exception as e:
+        print(f"Error analyzing voice: {e}")
+        return jsonify({"error": str(e)}), 500

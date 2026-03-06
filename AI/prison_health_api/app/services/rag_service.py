@@ -54,7 +54,7 @@ def generate_health_profile(inmate_data, emotion_history, survey_summary, previo
             except Exception as inner_e:
                 print(f"Warning: Could not fetch inmate records: {inner_e}")
 
-        context_text = f"--- GENERIC MEDICAL GUIDELINES ---\n{general_context}\n\n--- INMATE MEDICAL RECORDS ---\n{inmate_context}"
+        context = f"--- GENERIC MEDICAL GUIDELINES ---\n{general_context}\n\n--- INMATE MEDICAL RECORDS ---\n{inmate_context}"
         template = """
         You are an AI Prison Health Assistant. Analyze the inmate's profile based on the data provided.
         
@@ -89,9 +89,8 @@ def generate_health_profile(inmate_data, emotion_history, survey_summary, previo
         prompt = PromptTemplate(
             template=template,
             input_variables=["age", "gender", "crime", "visual_emotion", "ocr_prescription", "emotions", "survey", "previous_profiles", "context"]
-        )   
-        chain = prompt | structured_llm
-        response_obj = chain.invoke({
+        )  
+        input_data = {
             "age": getattr(inmate_data, 'age', 'N/A'),
             "gender": getattr(inmate_data, 'gender', 'Unknown'),
             "crime": getattr(inmate_data, 'crime_details', 'N/A'),
@@ -100,8 +99,13 @@ def generate_health_profile(inmate_data, emotion_history, survey_summary, previo
             "emotions": emotion_history,
             "survey": survey_summary,
             "previous_profiles": previous_profiles_str,
-            "context": context_text
-        })
+            "context": context
+        }
+        
+        print("Generating health profile...\n", prompt.format(**input_data)) 
+        
+        chain = prompt | structured_llm
+        response_obj = chain.invoke(input_data)
         return response_obj.model_dump()
 
     except Exception as e:

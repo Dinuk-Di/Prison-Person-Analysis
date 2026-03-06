@@ -72,6 +72,7 @@ def get_common_docs():
     
     return jsonify({"docs": docs}), 200
 
+@admin_bp.route('/analyze_inmate', methods=['POST'])
 def analyze_inmate():
     data = request.json
     username = data.get('Username')
