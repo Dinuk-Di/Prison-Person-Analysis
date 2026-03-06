@@ -4,7 +4,7 @@ import axiosInstance from '../../services/axiosInstance';
 import toast from 'react-hot-toast';
 import Button from '../../components/button/Button';
 
-export default function InmatesList() {
+export default function Inmates() {
   const [inmates, setInmates] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedInmateId, setSelectedInmateId] = useState(null);
@@ -200,7 +200,7 @@ export default function InmatesList() {
           <div className="p-3 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl shadow-lg shadow-indigo-500/30">
             <History className="w-8 h-8 text-white drop-shadow-md" />
           </div>
-          AEGIS CORE Subject History
+          Inmates History
 
         </h1>
         <p className="text-slate-600">Review past mental health assessments and historical records.</p>

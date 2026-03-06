@@ -26,23 +26,35 @@ llm = ChatOpenAI(
 
 structured_llm = llm.with_structured_output(HealthProfile)
 
-PERSIST_DIRECTORY = "./chroma_db"
+PERSIST_DIRECTORY_GENERAL = "./chroma_db"
+PERSIST_DIRECTORY_INMATES = "./chroma_db_inmates"
 
 def generate_health_profile(inmate_data, emotion_history, survey_summary, previous_profiles_str="None"):
     try:
         embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
-        vector_db = Chroma(persist_directory=PERSIST_DIRECTORY, embedding_function=embeddings)
         
-        search_kwargs = {"k": 3}
+        # General guidelines from main Chroma DB
+        general_vector_db = Chroma(persist_directory=PERSIST_DIRECTORY_GENERAL, embedding_function=embeddings)
+        general_retriever = general_vector_db.as_retriever(search_kwargs={"k": 3})
+        query = f"treatment guidelines for {survey_summary} and mental health interventions"
+        general_docs = general_retriever.invoke(query)
+        general_context = "\n\n".join([doc.page_content for doc in general_docs])
+
+        # Inmate specific history from inmate Chroma DB
+        inmate_context = "No specific medical records found."
         inmate_id = getattr(inmate_data, 'id', None)
         if inmate_id:
-            search_kwargs["filter"] = {"inmate_id": str(inmate_id)}
-            
-        retriever = vector_db.as_retriever(search_kwargs=search_kwargs)
-        
-        query = f"treatment guidelines for {survey_summary} and mental health interventions"
-        relevant_docs = retriever.invoke(query)
-        context_text = "\n\n".join([doc.page_content for doc in relevant_docs])
+            try:
+                inmate_vector_db = Chroma(persist_directory=PERSIST_DIRECTORY_INMATES, embedding_function=embeddings)
+                inmate_retriever = inmate_vector_db.as_retriever(search_kwargs={"k": 3, "filter": {"inmate_id": str(inmate_id)}})
+                inmate_query = "medical history conditions interventions records"
+                inmate_docs = inmate_retriever.invoke(inmate_query)
+                if inmate_docs:
+                    inmate_context = "\n\n".join([doc.page_content for doc in inmate_docs])
+            except Exception as inner_e:
+                print(f"Warning: Could not fetch inmate records: {inner_e}")
+
+        context_text = f"--- GENERIC MEDICAL GUIDELINES ---\n{general_context}\n\n--- INMATE MEDICAL RECORDS ---\n{inmate_context}"
         template = """
         You are an AI Prison Health Assistant. Analyze the inmate's profile based on the data provided.
         

@@ -17,8 +17,10 @@ import {
 import { useCamera } from "../../context/CameraContext";
 import Button from "../../components/button/Button";
 import Input from "../../components/input/Input";
-import axiosInstance from "../../services/axiosInstance";
+import createApiClient from "../../services/axiosInstance";
 import toast from "react-hot-toast";
+
+const axiosInstance = createApiClient();
 
 export default function Camera() {
   const {
@@ -374,8 +376,26 @@ export default function Camera() {
             <div className="p-3 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-2xl shadow-lg shadow-blue-500/30">
                 <CameraIcon className="w-8 h-8 text-white drop-shadow-md" />
             </div>
-            AEGIS CORE Diagnostics
+            Diagnostic Pipeline
           </h1>
+
+          {/* Survey Guidelines */}
+          <div className="mt-6 bg-blue-50/50 border border-blue-100 p-5 rounded-2xl flex items-start gap-4">
+            <div className="p-2 bg-blue-100 text-blue-600 rounded-xl mt-1">
+              <AlertCircle className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="font-bold text-slate-800 mb-2">Assessment Guidelines</h3>
+              <ol className="list-decimal list-inside text-sm text-slate-600 space-y-1 font-medium">
+                <li><span className="text-slate-700">Register inmate</span></li>
+                <li><span className="text-slate-700">Take a photo and analyze</span></li>
+                <li><span className="text-slate-700">Speak in English while picking an answer and speaking the answer at the same time</span></li>
+                <li><span className="text-slate-700">Upload prescriptions if have</span></li>
+                <li><span className="text-slate-700">Upload medical reports if have</span></li>
+                <li><span className="text-slate-700">Analyze to get the report</span></li>
+              </ol>
+            </div>
+          </div>
 
           {/* Stepper Progress Map */}
           <div className="flex items-center justify-between mt-8 relative">

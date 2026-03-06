@@ -1,5 +1,4 @@
-# Build stage for production
-FROM node:18-alpine AS builder
+FROM node:20-alpine AS builder
 
 # Set the working directory
 WORKDIR /app
@@ -16,8 +15,7 @@ COPY . .
 # Build the Vite application
 RUN npm run build
 
-# Production stage
-FROM node:18-alpine AS production
+FROM node:20-alpine AS production
 
 WORKDIR /app
 
@@ -33,8 +31,7 @@ EXPOSE 3610
 # Command to run the frontend in production
 CMD ["serve", "-s", "dist", "-l", "3610"]
 
-# Development stage
-FROM node:18-alpine AS development
+FROM node:20-alpine AS development
 
 WORKDIR /app
 

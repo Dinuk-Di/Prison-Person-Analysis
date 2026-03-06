@@ -7,7 +7,8 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-PERSIST_DIRECTORY = "./chroma_db"
+PERSIST_DIRECTORY_GENERAL = "./chroma_db"
+PERSIST_DIRECTORY_INMATES = "./chroma_db_inmates"
 
 def get_embeddings():
     """
@@ -37,7 +38,7 @@ def store_pdf_in_vector_db(file_path, inmate_id=None):
         # 3. Initialize Embeddings and Vector DB
         embeddings = get_embeddings()
         vector_db = Chroma(
-            persist_directory=PERSIST_DIRECTORY, 
+            persist_directory=PERSIST_DIRECTORY_INMATES, 
             embedding_function=embeddings
         )
         
