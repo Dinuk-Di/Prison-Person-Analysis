@@ -37,8 +37,9 @@ def store_pdf_in_vector_db(file_path, inmate_id=None):
         
         # 3. Initialize Embeddings and Vector DB
         embeddings = get_embeddings()
+        persist_dir = PERSIST_DIRECTORY_INMATES if inmate_id else PERSIST_DIRECTORY_GENERAL
         vector_db = Chroma(
-            persist_directory=PERSIST_DIRECTORY_INMATES, 
+            persist_directory=persist_dir, 
             embedding_function=embeddings
         )
         

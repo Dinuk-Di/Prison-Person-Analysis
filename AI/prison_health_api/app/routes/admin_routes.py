@@ -31,9 +31,47 @@ def upload_pdf():
             saved_files.append(file.filename)
             
     return jsonify({"message": f"Successfully processed: {', '.join(saved_files)}"}), 200
+    return jsonify({"message": f"Successfully processed: {', '.join(saved_files)}"}), 200
 
+@admin_bp.route('/upload_common_doc', methods=['POST'])
+def upload_common_doc():
+    if 'file' not in request.files:
+        return jsonify({"error": "No file"}), 400
+    
+    files = request.files.getlist('file')
+    
+    upload_dir = os.path.join("uploads", "common")
+    os.makedirs(upload_dir, exist_ok=True)
+    
+    saved_files = []
+    for file in files:
+        if file.filename == '':
+            continue
+            
+        save_path = os.path.join(upload_dir, file.filename)
+        file.save(save_path)
+        
+        # Store in the general vector DB (no inmate_id)
+        success = store_pdf_in_vector_db(save_path, None)
+        if success:
+            saved_files.append(file.filename)
+            
+    return jsonify({"message": f"Successfully processed: {', '.join(saved_files)}"}), 200
 
-@admin_bp.route('/analyze_inmate', methods=['POST'])
+@admin_bp.route('/common_docs', methods=['GET'])
+def get_common_docs():
+    upload_dir = os.path.join("uploads", "common")
+    if not os.path.exists(upload_dir):
+        return jsonify({"docs": []}), 200
+    
+    # List all PDF files in the common docs directory
+    files = [f for f in os.listdir(upload_dir) if f.endswith('.pdf')]
+    
+    # Return file info (could expand with creation time, size, etc.)
+    docs = [{"filename": f} for f in files]
+    
+    return jsonify({"docs": docs}), 200
+
 def analyze_inmate():
     data = request.json
     username = data.get('Username')

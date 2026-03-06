@@ -12,7 +12,7 @@ class Inmate(db.Model):
     tel_no = db.Column(db.String(20))
     crime_details = db.Column(db.Text)
     age = db.Column(db.Integer)
-    gender = db.Column(db.String(20)) # 'Male' or 'Female' (for model selection)
+    gender = db.Column(db.String(20))
     visual_emotion = db.Column(db.String(50))
     ocr_prescription = db.Column(db.Text)
     final_llm_report = db.Column(db.Text, nullable=True)

@@ -11,6 +11,8 @@ import RehabInmates from "../layouts/rehabilitation/RehabInmates";
 import Violations from "../layouts/violations/Violations";
 import Survey from "../layouts/survey/Survey";
 import SupportDocs from "../layouts/survey/SupportDocs";
+import InmatesHistory from "../layouts/security/InmatesHistory";
+import CommonDocs from "../layouts/security/CommonDocs";
 
 
 export const router = createBrowserRouter([
@@ -32,6 +34,14 @@ export const router = createBrowserRouter([
                     {
                         path: "support-docs",
                         element: <SupportDocs />
+                    },
+                    {
+                        path: "history",
+                        element: <InmatesHistory />
+                    },
+                    {
+                        path: "common-docs",
+                        element: <CommonDocs />
                     },
                 ]
             },

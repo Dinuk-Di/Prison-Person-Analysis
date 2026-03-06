@@ -18,8 +18,13 @@ import {
   Users2,
   Castle,
   Grid3x3,
-  ShieldAlert
+  ShieldAlert,
+  ChevronDown,
+  History,
+  FolderOpen
 } from "lucide-react";
+
+import React, { useState } from "react";
 
 const sidebarItems = [
   {
@@ -62,8 +67,12 @@ const sidebarItems = [
       },
       {
         name: "Security & Monitoring",
-        path: "/survey",
         icon: CameraIcon,
+        subItems: [
+          { name: "Survey", path: "/survey", icon: CameraIcon },
+          { name: "Inmates History", path: "/survey/history", icon: History },
+          { name: "Common Docs", path: "/survey/common-docs", icon: FolderOpen },
+        ]
       },
 
       {
@@ -96,6 +105,12 @@ const sidebarItems = [
 ];
 
 export default function Sidebar({ isOpen, onClose, isMobile, currentUser }) {
+  const [expandedMenus, setExpandedMenus] = useState({});
+
+  const toggleSubmenu = (name) => {
+    setExpandedMenus((prev) => ({ ...prev, [name]: !prev[name] }));
+  };
+
   const logout = () => {
     localStorage.removeItem("token");
     window.location.href = "/sign-in";
@@ -157,36 +172,89 @@ export default function Sidebar({ isOpen, onClose, isMobile, currentUser }) {
               <div className="space-y-1">
                 {section.items.map((item) => {
                   const Icon = item.icon;
+                  const hasSubItems = Boolean(item.subItems && item.subItems.length > 0);
+                  const isExpanded = expandedMenus[item.name];
+
                   return (
-                    <NavLink
-                      key={item.path}
-                      to={item.path}
-                      onClick={isMobile ? onClose : undefined}
-                      className={({ isActive }) => `
-                      flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 group
-                      ${
-                        isActive
-                          ? "bg-slate-700 text-white shadow-md"
-                          : "text-gray-600 hover:bg-gray-100 hover:text-slate-700"
-                      }
-                    `}
-                    >
-                      {({ isActive }) => (
-                        <>
-                          <Icon
-                            className={`w-5 h-5 transition-transform duration-200 flex-shrink-0 ${
-                              isActive
-                                ? "text-white"
-                                : "text-gray-400 group-hover:text-slate-700"
-                            }`}
-                          />
-                          <span className="font-medium text-sm">{item.name}</span>
-                          {isActive && (
-                            <div className="ml-auto w-1 h-6 bg-white rounded-full"></div>
+                    <div key={item.name}>
+                      {hasSubItems ? (
+                        <button
+                          onClick={() => toggleSubmenu(item.name)}
+                          className={`
+                            w-full flex items-center justify-between px-3 py-2.5 rounded-lg transition-all duration-200 group
+                            ${isExpanded ? "bg-slate-100 text-slate-800 font-semibold" : "text-gray-600 hover:bg-gray-100 hover:text-slate-700"}
+                          `}
+                        >
+                          <div className="flex items-center gap-3">
+                            <Icon className={`w-5 h-5 transition-transform duration-200 flex-shrink-0 ${isExpanded ? "text-slate-800" : "text-gray-400 group-hover:text-slate-700"}`} />
+                            <span className="font-medium text-sm">{item.name}</span>
+                          </div>
+                          <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${isExpanded ? "rotate-180" : ""}`} />
+                        </button>
+                      ) : (
+                        <NavLink
+                          to={item.path}
+                          onClick={isMobile ? onClose : undefined}
+                          className={({ isActive }) => `
+                          flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 group
+                          ${
+                            isActive
+                              ? "bg-slate-700 text-white shadow-md"
+                              : "text-gray-600 hover:bg-gray-100 hover:text-slate-700"
+                          }
+                        `}
+                        >
+                          {({ isActive }) => (
+                            <>
+                              <Icon
+                                className={`w-5 h-5 transition-transform duration-200 flex-shrink-0 ${
+                                  isActive
+                                    ? "text-white"
+                                    : "text-gray-400 group-hover:text-slate-700"
+                                }`}
+                              />
+                              <span className="font-medium text-sm">{item.name}</span>
+                              {isActive && (
+                                <div className="ml-auto w-1 h-6 bg-white rounded-full"></div>
+                              )}
+                            </>
                           )}
-                        </>
+                        </NavLink>
                       )}
-                    </NavLink>
+
+                      {/* Sub-items rendering */}
+                      {hasSubItems && isExpanded && (
+                        <div className="mt-1 ml-4 pl-4 border-l-2 border-slate-200 space-y-1">
+                          {item.subItems.map((subItem) => {
+                            const SubIcon = subItem.icon;
+                            return (
+                              <NavLink
+                                key={subItem.path}
+                                to={subItem.path}
+                                end
+                                onClick={isMobile ? onClose : undefined}
+                                className={({ isActive }) => `
+                                  flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200 group
+                                  ${
+                                    isActive
+                                      ? "bg-indigo-50 text-indigo-700 font-semibold shadow-sm"
+                                      : "text-slate-500 hover:bg-slate-50 hover:text-slate-800"
+                                  }
+                                `}
+                              >
+                                {({ isActive }) => (
+                                  <>
+                                    <SubIcon className={`w-4 h-4 transition-transform duration-200 flex-shrink-0 ${isActive ? "text-indigo-600" : "text-slate-400 group-hover:text-slate-600"}`} />
+                                    <span className="text-sm">{subItem.name}</span>
+                                    {isActive && <div className="ml-auto w-1.5 h-1.5 bg-indigo-600 rounded-full"></div>}
+                                  </>
+                                )}
+                              </NavLink>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
                   );
                 })}
               </div>

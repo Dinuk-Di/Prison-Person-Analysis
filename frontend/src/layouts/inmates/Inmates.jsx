@@ -1,256 +1,220 @@
 import React, { useState, useEffect } from 'react';
-import { Users, Search, History, ChevronRight, Activity, FileText, BarChart3, Clock } from 'lucide-react';
-import axiosInstance from '../../services/axiosInstance';
+import { Plus, Search, Filter, Eye, Edit, Trash2, X, Save } from 'lucide-react';
+import InmateService from '../../services/inmate/inmateService';
 import toast from 'react-hot-toast';
-import Button from '../../components/button/Button';
 
 export default function Inmates() {
-  const [inmates, setInmates] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [selectedInmateId, setSelectedInmateId] = useState(null);
-  const [historyData, setHistoryData] = useState(null);
-  const [historyLoading, setHistoryLoading] = useState(false);
+    const [inmates, setInmates] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [searchTerm, setSearchTerm] = useState('');
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [formData, setFormData] = useState({
+        name: '',
+        nic: '',
+        address: '',
+        tel_no: '',
+        crime_details: '',
+        age: '',
+        gender: 'Male'
+    });
 
-  useEffect(() => {
-    fetchInmates();
-  }, []);
+    useEffect(() => {
+        fetchInmates();
+    }, []);
 
-  const fetchInmates = async () => {
-    try {
-      const res = await axiosInstance.get('http://127.0.0.1:5010/api/history/inmates');
-      setInmates(res.data.inmates);
-    } catch (err) {
-      toast.error('Failed to load inmates mapping.');
-    } finally {
-      setLoading(false);
-    }
-  };
+    const fetchInmates = async () => {
+        try {
+            const data = await InmateService.getAllInmates();
+            console.log("Fetched Inmates Data:", data);
+            setInmates(Array.isArray(data) ? data : (data?.data || []));
+        } catch (error) {
+            console.error("Error fetching inmates:", error);
+            toast.error("Failed to load inmates");
+        } finally {
+            setLoading(false);
+        }
+    };
 
-  const handleSelectInmate = async (id) => {
-    setSelectedInmateId(id);
-    setHistoryLoading(true);
-    try {
-      const res = await axiosInstance.get(`http://127.0.0.1:5010/api/history/inmate/${id}`);
-      setHistoryData(res.data);
-    } catch (err) {
-      toast.error('Failed to load inmate history.');
-      setSelectedInmateId(null);
-    } finally {
-      setHistoryLoading(false);
-    }
-  };
+    const handleInputChange = (e) => {
+        const { name, value } = e.target;
+        setFormData({ ...formData, [name]: value });
+    };
 
-  if (selectedInmateId && historyLoading) {
-    return <div className="p-8 text-center text-slate-500 flex flex-col items-center justify-center min-h-[50vh]">
-        <Activity className="w-10 h-10 animate-bounce text-blue-500 mb-4" />
-        Pulling historical data and loading saved AI analysis...
-    </div>;
-  }
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        try {
+            await InmateService.createInmate(formData);
+            toast.success("Inmate registered successfully");
+            setIsModalOpen(false);
+            fetchInmates();
+            resetForm();
+        } catch (error) {
+            console.error("Error creating inmate:", error);
+            toast.error("Failed to register inmate");
+        }
+    };
 
-  if (selectedInmateId && historyData) {
-    return (
-      <div className="space-y-6">
-        <Button variant="outline" onClick={() => setSelectedInmateId(null)} className="mb-4">
-            &larr; Back to Directory
-        </Button>
+    const resetForm = () => {
+        setFormData({
+            name: '',
+            nic: '',
+            address: '',
+            tel_no: '',
+            crime_details: '',
+            age: '',
+            gender: 'Male'
+        });
+    };
 
-        <div className="bg-white rounded-xl shadow-sm p-8 border border-slate-200">
-            <div className="flex items-center gap-4 mb-8 pb-6 border-b border-slate-100">
-                <div className="w-16 h-16 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg text-white font-bold text-2xl">
-                    {historyData.name.charAt(0)}
-                </div>
-                <div>
-                    <h1 className="text-3xl font-extrabold text-slate-900">{historyData.name}</h1>
-                    <p className="text-slate-500">
-                      ID: #{historyData.id} • {historyData.gender} • {historyData.age} yrs • Initial Emotion: <span className="font-semibold text-indigo-600">{historyData.initial_visual_emotion}</span>
-                    </p>
-                </div>
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                {/* Q&A Timeline */}
-                <div className="space-y-4">
-                    <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-                        <History className="w-5 h-5 text-indigo-500"/> Survey Timeline
-                    </h3>
-                    {historyData.qa_history.length === 0 ? (
-                        <p className="text-sm text-slate-500 bg-slate-50 p-4 rounded-lg">No survey answers recorded yet.</p>
-                    ) : (
-                        <div className="space-y-4 max-h-[500px] overflow-y-auto pr-2">
-                            {historyData.qa_history.map((qa, idx) => (
-                                <div key={idx} className="bg-slate-50 p-4 rounded-xl border border-slate-100 relative">
-                                    <div className="flex justify-between items-start mb-2">
-                                        <p className="text-sm font-semibold text-slate-800 flex-1 pr-4">{qa.question}</p>
-                                        {qa.timestamp && <span className="text-[10px] text-slate-400 mt-1 flex items-center gap-1"><Clock className="w-3 h-3"/> {new Date(qa.timestamp).toLocaleTimeString()}</span>}
-                                    </div>
-                                    <div className="flex justify-between items-end mt-3">
-                                        <p className="text-sm text-indigo-700 font-medium bg-indigo-50 px-3 py-1.5 rounded-md inline-block">
-                                            "{qa.answer}"
-                                        </p>
-                                        <p className="text-xs text-slate-500 flex items-center gap-1">
-                                            Voice: <span className="font-semibold text-slate-700">{qa.voice_emotion}</span>
-                                        </p>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    )}
-
-                    {historyData.ocr_prescription && historyData.ocr_prescription.trim() && (
-                        <div className="mt-8">
-                            <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2 mb-3">
-                                <FileText className="w-5 h-5 text-indigo-500"/> Extracted Medical Records
-                            </h3>
-                            <div className="bg-slate-50 text-xs text-slate-600 font-mono p-4 rounded-lg overflow-y-auto max-h-40 border border-slate-200">
-                                {historyData.ocr_prescription}
-                            </div>
-                        </div>
-                    )}
-                </div>
-
-                {/* Final AI Generated Report */}
-                <div className="bg-slate-50 p-6 rounded-xl border border-slate-200">
-                    <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2 mb-6">
-                        <BarChart3 className="w-5 h-5 text-indigo-500"/> Retrospective AI Health Timelines
-                    </h3>
-
-                    {historyData.reports && historyData.reports.length > 0 ? (
-                        <div className="space-y-8 max-h-[600px] overflow-y-auto pr-2">
-                            {historyData.reports.map((reportItem, idx) => (
-                                <div key={idx} className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm relative">
-                                    <div className="absolute top-0 right-0 bg-indigo-100 text-indigo-800 px-3 py-1 rounded-bl-lg rounded-tr-xl text-xs font-bold">
-                                        {reportItem.timestamp || `Assessment #${idx + 1}`}
-                                    </div>
-                                    <h4 className="font-bold text-slate-800 mb-4 pr-32">
-                                        Analysis Record
-                                        {reportItem.progress_indicator && (
-                                            <span className="ml-3 text-xs font-semibold px-2 py-1 bg-blue-50 text-blue-700 rounded-md border border-blue-200">
-                                                Trend: {reportItem.progress_indicator}
-                                            </span>
-                                        )}
-                                    </h4>
-                                    
-                                    <div className="space-y-4">
-                                        <div className="bg-slate-50 p-3 rounded-lg border border-slate-100 flex items-center justify-between">
-                                            <p className="text-xs font-semibold text-slate-500 tracking-wider uppercase">Risk Assessment</p>
-                                            <span className={`text-lg font-black ${
-                                                reportItem.risk_level === 'High' ? 'text-red-600' :
-                                                reportItem.risk_level === 'Medium' ? 'text-orange-500' :
-                                                'text-emerald-500'
-                                            }`}>
-                                                {reportItem.risk_level}
-                                            </span>
-                                        </div>
-
-                                        <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
-                                            <p className="text-xs font-semibold text-slate-500 tracking-wider uppercase mb-2">Likely Conditions</p>
-                                            <div className="flex flex-wrap gap-2">
-                                                {reportItem.suspected_conditions?.length > 0 ? (
-                                                    reportItem.suspected_conditions.map((c, i) => (
-                                                        <span key={i} className="px-2 py-1 bg-white border border-slate-200 rounded text-xs font-medium text-slate-700">{c}</span>
-                                                    ))
-                                                ) : (
-                                                    <span className="text-xs text-slate-400">None</span>
-                                                )}
-                                            </div>
-                                        </div>
-                                        
-                                        <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
-                                            <p className="text-xs font-semibold text-slate-500 tracking-wider uppercase mb-2">AI Reasoning</p>
-                                            <p className="text-slate-600 text-xs leading-relaxed">
-                                                {reportItem.reasoning || "No reasoning provided."}
-                                            </p>
-                                        </div>
-
-                                        {reportItem.recommended_actions?.length > 0 && (
-                                            <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
-                                                <p className="text-xs font-semibold text-slate-500 tracking-wider uppercase mb-2">Action Plan</p>
-                                                <ul className="list-disc pl-4 space-y-1">
-                                                    {reportItem.recommended_actions.map((act, i) => (
-                                                        <li key={i} className="text-xs text-slate-600">{act}</li>
-                                                    ))}
-                                                </ul>
-                                            </div>
-                                        )}
-
-                                        {reportItem.urgent_alert && (
-                                            <div className="bg-red-50 text-red-700 border border-red-200 p-3 rounded-lg text-xs font-bold flex items-center gap-2">
-                                                <Activity className="w-4 h-4 animate-pulse" /> Urgent Medical Intervention Flagged
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    ) : (
-                        <p className="text-sm text-slate-500 text-center py-6">No historical AI analysis records found.</p>
-                    )}
-                </div>
-            </div>
-        </div>
-      </div>
+    const filteredInmates = inmates.filter(inmate => 
+        (inmate.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (inmate.nic || '').toLowerCase().includes(searchTerm.toLowerCase())
     );
-  }
 
-  // Directory View
-  return (
-    <div className="space-y-6">
-      <div className="bg-white/90 backdrop-blur-xl rounded-3xl shadow-xl shadow-slate-200/50 p-8 border border-slate-200/60">
-        <h1 className="text-3xl font-black tracking-tight text-slate-900 mb-2 flex items-center gap-4">
-          <div className="p-3 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl shadow-lg shadow-indigo-500/30">
-            <History className="w-8 h-8 text-white drop-shadow-md" />
-          </div>
-          Inmates History
+    return (
+        <div className="p-6">
+            <div className="flex justify-between items-center mb-6">
+                <h1 className="text-2xl font-bold text-gray-800">Inmate Management</h1>
+                <button 
+                    onClick={() => setIsModalOpen(true)}
+                    className="bg-slate-900 text-white px-4 py-2 rounded-md flex items-center gap-2 hover:bg-blue-700"
+                >
+                    <Plus className="w-4 h-4" /> Register Inmate
+                </button>
+            </div>
 
-        </h1>
-        <p className="text-slate-600">Review past mental health assessments and historical records.</p>
-      </div>
+            <div className="bg-white p-4 rounded-lg shadow mb-6 flex gap-4">
+                <div className="relative flex-1">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+                    <input
+                        type="text"
+                        placeholder="Search inmates..."
+                        className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                    />
+                </div>
+                <button className="px-4 py-2 border border-gray-300 rounded-md flex items-center gap-2 hover:bg-gray-50">
+                    <Filter className="w-4 h-4" /> Filter
+                </button>
+            </div>
 
-      <div className="bg-white/90 backdrop-blur-xl rounded-3xl shadow-xl shadow-slate-200/40 p-8 border border-slate-200/60">
-        {loading ? (
-          <div className="p-8 text-center text-slate-500">Loading directory...</div>
-        ) : inmates.length === 0 ? (
-          <div className="p-8 text-center text-slate-500">No inmates found in the system. Check back later.</div>
-        ) : (
-          <table className="w-full text-left">
-            <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 text-xs font-semibold uppercase tracking-wider">
-              <tr>
-                <th className="px-6 py-4">ID</th>
-                <th className="px-6 py-4">Name</th>
-                <th className="px-6 py-4">Age</th>
-                <th className="px-6 py-4">Gender</th>
-                <th className="px-6 py-4">Initial Emotion</th>
-                <th className="px-6 py-4 text-right">Action</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {inmates.map((i) => (
-                <tr key={i.id} className="hover:bg-slate-50 transition-colors cursor-pointer group" onClick={() => handleSelectInmate(i.id)}>
-                  <td className="px-6 py-4 text-sm font-medium text-slate-500">#{i.id}</td>
-                  <td className="px-6 py-4 font-semibold text-slate-900 flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-xs">
-                      {i.name.charAt(0)}
+            {loading ? (
+                <div className="text-center py-10">Loading inmates...</div>
+            ) : (
+                <div className="bg-white rounded-lg shadow overflow-hidden">
+                    <table className="min-w-full divide-y divide-gray-200">
+                        <thead className="bg-gray-50">
+                            <tr>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">NIC</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Age</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Gender</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Address</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Telephone</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Crime Details</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Diagnosis Done</th>
+                                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody className="bg-white divide-y divide-gray-200">
+                            {filteredInmates.map((inmate) => (
+                                <tr key={inmate.id}>
+                                    <td className="px-6 py-4 whitespace-nowrap">
+                                        <div className="flex items-center">
+                                            <div className="h-8 w-8 rounded-full bg-gray-200 flex items-center justify-center text-gray-600 font-bold mr-3">
+                                                {inmate.name ? inmate.name.substring(0, 2).toUpperCase() : 'N/A'}
+                                            </div>
+                                            <div className="text-sm font-medium text-gray-900">{inmate.name || 'Unknown'}</div>
+                                        </div>
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                        {inmate.nic}
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                        {inmate.age}
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                        {inmate.gender}
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 max-w-xs truncate" title={inmate.address}>
+                                        {inmate.address}
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                        {inmate.tel_no}
+                                    </td>
+                                    <td className="px-6 py-4 text-sm text-gray-500 max-w-xs truncate" title={inmate.crime_details}>
+                                        {inmate.crime_details}
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap">
+                                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
+                                            ${inmate.diagnosis_done ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                                            {inmate.diagnosis_done ? 'True' : 'False'}
+                                        </span>
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                        <button className="text-blue-600 hover:text-blue-900 mr-3"><Eye className="w-4 h-4" /></button>
+                                        <button className="text-indigo-600 hover:text-indigo-900 mr-3"><Edit className="w-4 h-4" /></button>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            )}
+
+            {isModalOpen && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 overflow-y-auto">
+                    <div className="bg-white rounded-lg p-6 w-full max-w-2xl my-8">
+                        <div className="flex justify-between items-center mb-4">
+                            <h2 className="text-xl font-bold">Register New Inmate</h2>
+                            <button onClick={() => setIsModalOpen(false)} className="text-gray-500 hover:text-gray-700">
+                                <X className="w-6 h-6" />
+                            </button>
+                        </div>
+                        <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700">Full Name</label>
+                                <input type="text" name="name" value={formData.name} onChange={handleInputChange} required className="mt-1 block w-full rounded-md border-gray-300 shadow-sm border p-2" />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700">NIC / Booking Number</label>
+                                <input type="text" name="nic" value={formData.nic} onChange={handleInputChange} required className="mt-1 block w-full rounded-md border-gray-300 shadow-sm border p-2" />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700">Age</label>
+                                <input type="number" name="age" value={formData.age} onChange={handleInputChange} required className="mt-1 block w-full rounded-md border-gray-300 shadow-sm border p-2" />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700">Gender</label>
+                                <select name="gender" value={formData.gender} onChange={handleInputChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm border p-2">
+                                    <option value="Male">Male</option>
+                                    <option value="Female">Female</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700">Address</label>
+                                <input type="text" name="address" value={formData.address} onChange={handleInputChange} required className="mt-1 block w-full rounded-md border-gray-300 shadow-sm border p-2" />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700">Telephone Number</label>
+                                <input type="tel" name="tel_no" value={formData.tel_no} onChange={handleInputChange} required className="mt-1 block w-full rounded-md border-gray-300 shadow-sm border p-2" />
+                            </div>
+                            <div className="col-span-2">
+                                <label className="block text-sm font-medium text-gray-700">Crime Details</label>
+                                <textarea name="crime_details" value={formData.crime_details} onChange={handleInputChange} required className="mt-1 block w-full rounded-md border-gray-300 shadow-sm border p-2" rows="3"></textarea>
+                            </div>
+                            
+                            <div className="col-span-2 mt-4 flex justify-end gap-3">
+                                <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50">Cancel</button>
+                                <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center gap-2">
+                                    <Save className="w-4 h-4" /> Register Inmate
+                                </button>
+                            </div>
+                        </form>
                     </div>
-                    {i.name}
-                  </td>
-                  <td className="px-6 py-4 text-sm text-slate-700">{i.age}</td>
-                  <td className="px-6 py-4 text-sm text-slate-700">{i.gender}</td>
-                  <td className="px-6 py-4 text-sm text-slate-700 capitalize">
-                    {i.visual_emotion && i.visual_emotion !== 'Unknown' ? (
-                        <span className="px-2 py-1 bg-slate-100 rounded text-slate-600 text-xs font-semibold">{i.visual_emotion}</span>
-                    ) : '-'}
-                  </td>
-                  <td className="px-6 py-4 text-right">
-                    <button className="text-indigo-600 font-medium text-sm flex items-center gap-1 ml-auto opacity-0 group-hover:opacity-100 transition-opacity">
-                        View History <ChevronRight className="w-4 h-4"/>
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
-    </div>
-  );
+                </div>
+            )}
+        </div>
+    );
 }

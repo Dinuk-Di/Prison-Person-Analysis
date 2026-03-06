@@ -11,6 +11,24 @@ inmate_bp = Blueprint('inmate', __name__)
 def get_questions():
     return jsonify({"questions": MEDICAL_QUESTIONS})
 
+@inmate_bp.route('/all', methods=['GET'])
+def get_all_inmates():
+    inmates = Inmate.query.all()
+    result = []
+    for i in inmates:
+        result.append({
+            "id": i.id,
+            "name": i.name,
+            "nic": i.nic,
+            "address": i.address,
+            "tel_no": i.tel_no,
+            "crime_details": i.crime_details,
+            "age": i.age,
+            "gender": i.gender,
+            "diagnosis_done": len(i.health_profiles) > 0
+        })
+    return jsonify(result), 200
+
 @inmate_bp.route('/lookup', methods=['GET'])
 def lookup_inmate():
     name = request.args.get('name')

@@ -17,10 +17,8 @@ import {
 import { useCamera } from "../../context/CameraContext";
 import Button from "../../components/button/Button";
 import Input from "../../components/input/Input";
-import createApiClient from "../../services/axiosInstance";
+import axiosInstance from "../../services/axiosInstance";
 import toast from "react-hot-toast";
-
-const axiosInstance = createApiClient();
 
 export default function Camera() {
   const {
@@ -389,9 +387,9 @@ export default function Camera() {
               <ol className="list-decimal list-inside text-sm text-slate-600 space-y-1 font-medium">
                 <li><span className="text-slate-700">Register inmate</span></li>
                 <li><span className="text-slate-700">Take a photo and analyze</span></li>
-                <li><span className="text-slate-700">Speak in English while picking an answer and speaking the answer at the same time</span></li>
                 <li><span className="text-slate-700">Upload prescriptions if have</span></li>
                 <li><span className="text-slate-700">Upload medical reports if have</span></li>
+                <li><span className="text-slate-700">Speak in English while picking an answer and speaking the answer at the same time</span></li>
                 <li><span className="text-slate-700">Analyze to get the report</span></li>
               </ol>
             </div>
