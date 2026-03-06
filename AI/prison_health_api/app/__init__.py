@@ -5,6 +5,7 @@ from app.routes.inmate_routes import inmate_bp
 from app.routes.admin_routes import admin_bp
 from app.routes.staff_routes import staff_bp
 from app.routes.history_routes import history_bp
+from app.routes.auth_routes import auth_bp
 import os
 
 def create_app():
@@ -27,6 +28,7 @@ def create_app():
     app.register_blueprint(admin_bp, url_prefix='/api/admin')
     app.register_blueprint(staff_bp, url_prefix='/api/staff')
     app.register_blueprint(history_bp, url_prefix='/api/history')
+    app.register_blueprint(auth_bp, url_prefix='/api/auth')
     
     # Create DB Tables
     with app.app_context():

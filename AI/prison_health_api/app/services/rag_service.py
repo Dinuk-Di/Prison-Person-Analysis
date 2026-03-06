@@ -18,11 +18,19 @@ class HealthProfile(BaseModel):
     progress_indicator: str = Field(description="Tracking value comparing with previous profile: Improved, Stable, or Regressed. Use 'Initial' if no previous history.")
 
 
-llm = ChatOpenAI(
-    model="gpt-4o",  
-    temperature=0.0, 
-    api_key=os.getenv("OPENAI_API_KEY")
-)
+llm_base_url = os.getenv("LLM_BASE_URL", None)
+llm_model = os.getenv("LLM_MODEL", "gpt-4o")
+
+llm_kwargs = {
+    "model": llm_model,
+    "temperature": 0.0,
+    "api_key": os.getenv("OPENAI_API_KEY", "dummy-key-for-local")
+}
+
+if llm_base_url:
+    llm_kwargs["base_url"] = llm_base_url
+
+llm = ChatOpenAI(**llm_kwargs)
 
 structured_llm = llm.with_structured_output(HealthProfile)
 

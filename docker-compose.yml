@@ -5,12 +5,14 @@ services:
       context: ./AI/prison_health_api
       dockerfile: Dockerfile
     ports:
-      - "5010:5010"
+      - "127.0.0.1:5010:5010"
     volumes:
       - ./AI/prison_health_api:/app
     environment:
       - FLASK_APP=run.py
       - FLASK_DEBUG=1
+      - LLM_BASE_URL=http://host.docker.internal:11434/v1
+      - LLM_MODEL=llama3.1
     networks:
       - app-network
 
@@ -20,12 +22,12 @@ services:
       dockerfile: Dockerfile
       target: development
     ports:
-      - "3610:3610"
+      - "127.0.0.1:3610:3610"
     volumes:
       - ./frontend:/app
       - /app/node_modules
     environment:
-      - VITE_BASE_URL=http://localhost:5010
+      - VITE_BASE_URL=http://127.0.0.1:5010
       - WATCHPACK_POLLING=true
       - CHOKIDAR_USEPOLLING=true
     depends_on:

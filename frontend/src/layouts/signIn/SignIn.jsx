@@ -3,7 +3,7 @@ import { Lock, Zap, User } from "lucide-react";
 import Input from "./../../components/input/Input";
 import Button from "./../../components/button/Button";
 import { useNavigate } from "react-router-dom";
-import { login } from "../../services/auth/auth";
+import { login, register } from "../../services/auth/auth";
 import toast from "react-hot-toast";
 import logo from "../../assets/logo.jpeg";
 import prisonImage from "../../assets/prison.jpg";
@@ -13,6 +13,7 @@ export default function SignIn() {
     username: "",
     password: "",
   });
+  const [isLogin, setIsLogin] = useState(true);
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
@@ -55,16 +56,25 @@ export default function SignIn() {
     setLoading(true);
 
     try {
-      navigate("/");
-      // const response = await login(formData);
-
-      // if (response.token) {
-      //   localStorage.setItem("token", response.token);
-      //   toast.success("Login successful! 🚀");
-      //   navigate("/");
-      // } else {
-      //   toast.error("Login failed. Please try again.");
-      // }
+      if (isLogin) {
+        const response = await login(formData);
+        if (response.token) {
+          localStorage.setItem("token", response.token);
+          toast.success("Login successful! 🚀");
+          navigate("/");
+        } else {
+          toast.error("Login failed. Please try again.");
+        }
+      } else {
+        const response = await register(formData);
+        if (response.token) {
+          localStorage.setItem("token", response.token);
+          toast.success("Registration successful! Welcome! 🚀");
+          navigate("/");
+        } else {
+          toast.error("Registration failed. Please try again.");
+        }
+      }
     } catch (error) {
       const msg = error?.response?.data?.message || "Something went wrong.";
       toast.error(msg);
@@ -116,13 +126,23 @@ export default function SignIn() {
                 required
               />
 
-              <div className="flex items-center justify-end text-sm">
-                <a
-                  href="#"
-                  className="text-blue-600 hover:text-blue-700 font-medium transition-colors"
+              <div className="flex items-center justify-between text-sm">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsLogin(!isLogin);
+                    setErrors({});
+                    setFormData({ username: "", password: "" });
+                  }}
+                  className="text-indigo-600 hover:text-indigo-700 font-medium transition-colors"
                 >
-                  Forgot password?
-                </a>
+                  {isLogin ? "Need an account? Register" : "Already have an account? Sign in"}
+                </button>
+                {isLogin && (
+                  <a href="#" className="text-blue-600 hover:text-blue-700 font-medium transition-colors">
+                    Forgot password?
+                  </a>
+                )}
               </div>
 
               <Button
@@ -132,7 +152,7 @@ export default function SignIn() {
                 loading={loading}
                 className="w-full"
               >
-                Sign In
+                {isLogin ? "Sign In" : "Register Account"}
               </Button>
             </form>
           </div>
