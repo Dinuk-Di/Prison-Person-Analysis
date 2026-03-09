@@ -8,9 +8,9 @@ const getBaseURL = () => {
   return import.meta.env.VITE_BASE_URL;
 };
 
-export const createApiClient = (baseURL) => {
+const createApiClient = (baseURL = getBaseURL()) => {
   const instance = axios.create({
-    baseURL: baseURL || getBaseURL(),
+    baseURL: `${baseURL}`,
     headers: {
       "Content-Type": "application/json",
     },
@@ -35,12 +35,10 @@ export const createApiClient = (baseURL) => {
           window.location.href = "/sign-in";
       }
       return Promise.reject(error);
-  });
+  }
+  );
 
   return instance;
 };
 
-const axiosInstance = createApiClient(getBaseURL());
-
-
-export default axiosInstance;
+export default createApiClient;

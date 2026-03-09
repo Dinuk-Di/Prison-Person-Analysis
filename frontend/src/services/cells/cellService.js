@@ -1,4 +1,4 @@
-import { createApiClient } from "../axiosInstance.js";
+import createApiClient from "../axiosInstance.js";
 
 const baseURL = import.meta.env.VITE_INMATE_SERVICE_URL;
 

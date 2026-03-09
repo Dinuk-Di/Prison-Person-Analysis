@@ -1,21 +1,28 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Search, Filter, Eye, Edit, Trash2, X, Save } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import InmateService from '../../services/inmate/inmateService';
 import toast from 'react-hot-toast';
 
 export default function Inmates() {
+    const navigate = useNavigate();
     const [inmates, setInmates] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [formData, setFormData] = useState({
-        name: '',
-        nic: '',
-        address: '',
-        tel_no: '',
-        crime_details: '',
-        age: '',
-        gender: 'Male'
+        bookingNumber: '',
+        firstName: '',
+        lastName: '',
+        dateOfBirth: '',
+        gender: 'MALE',
+        caseType: 'OTHER',
+        sentenceStartDate: '',
+        sentenceEndDate: '',
+        sentenceDurationMonths: 0,
+        securityLevel: 'MEDIUM',
+        currentFacility: 'Main Prison',
+        admissionDate: new Date().toISOString().split('T')[0]
     });
 
     useEffect(() => {
@@ -25,8 +32,7 @@ export default function Inmates() {
     const fetchInmates = async () => {
         try {
             const data = await InmateService.getAllInmates();
-            console.log("Fetched Inmates Data:", data);
-            setInmates(Array.isArray(data) ? data : (data?.data || []));
+            setInmates(data);
         } catch (error) {
             console.error("Error fetching inmates:", error);
             toast.error("Failed to load inmates");
@@ -56,19 +62,25 @@ export default function Inmates() {
 
     const resetForm = () => {
         setFormData({
-            name: '',
-            nic: '',
-            address: '',
-            tel_no: '',
-            crime_details: '',
-            age: '',
-            gender: 'Male'
+            bookingNumber: '',
+            firstName: '',
+            lastName: '',
+            dateOfBirth: '',
+            gender: 'MALE',
+            caseType: 'OTHER',
+            sentenceStartDate: '',
+            sentenceEndDate: '',
+            sentenceDurationMonths: 0,
+            securityLevel: 'MEDIUM',
+            currentFacility: 'Main Prison',
+            admissionDate: new Date().toISOString().split('T')[0]
         });
     };
 
     const filteredInmates = inmates.filter(inmate => 
-        (inmate.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (inmate.nic || '').toLowerCase().includes(searchTerm.toLowerCase())
+        inmate.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        inmate.lastName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        inmate.bookingNumber.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
     return (
@@ -106,54 +118,48 @@ export default function Inmates() {
                     <table className="min-w-full divide-y divide-gray-200">
                         <thead className="bg-gray-50">
                             <tr>
+                                {/* <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Booking #</th> */}
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">NIC</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Age</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Gender</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Address</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Telephone</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Crime Details</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Diagnosis Done</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Location</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Security</th>
                                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                             </tr>
                         </thead>
                         <tbody className="bg-white divide-y divide-gray-200">
                             {filteredInmates.map((inmate) => (
                                 <tr key={inmate.id}>
+                                    {/* <td className="px-6 py-4 whitespace-nowrap font-medium text-gray-900">{inmate.bookingNumber}</td> */}
                                     <td className="px-6 py-4 whitespace-nowrap">
                                         <div className="flex items-center">
                                             <div className="h-8 w-8 rounded-full bg-gray-200 flex items-center justify-center text-gray-600 font-bold mr-3">
-                                                {inmate.name ? inmate.name.substring(0, 2).toUpperCase() : 'N/A'}
+                                                {inmate.firstName[0]}{inmate.lastName[0]}
                                             </div>
-                                            <div className="text-sm font-medium text-gray-900">{inmate.name || 'Unknown'}</div>
+                                            <div>
+                                                <div className="text-sm font-medium text-gray-900">{inmate.firstName} {inmate.lastName}</div>
+                                                <div className="text-xs text-gray-500">{inmate.age} yrs • {inmate.gender}</div>
+                                            </div>
                                         </div>
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                        {inmate.nic}
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                        {inmate.age}
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                        {inmate.gender}
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 max-w-xs truncate" title={inmate.address}>
-                                        {inmate.address}
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                        {inmate.tel_no}
-                                    </td>
-                                    <td className="px-6 py-4 text-sm text-gray-500 max-w-xs truncate" title={inmate.crime_details}>
-                                        {inmate.crime_details}
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap">
                                         <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
-                                            ${inmate.diagnosis_done ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
-                                            {inmate.diagnosis_done ? 'True' : 'False'}
+                                            ${inmate.status === 'ACTIVE' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
+                                            {inmate.status}
+                                        </span>
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                        {inmate.block} - {inmate.cellNumber}
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap">
+                                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
+                                            ${inmate.securityLevel === 'MAXIMUM' ? 'bg-red-100 text-red-800' : 
+                                              inmate.securityLevel === 'MEDIUM' ? 'bg-yellow-100 text-yellow-800' : 
+                                              'bg-green-100 text-green-800'}`}>
+                                            {inmate.securityLevel}
                                         </span>
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                        <button className="text-blue-600 hover:text-blue-900 mr-3"><Eye className="w-4 h-4" /></button>
+                                        <button onClick={() => navigate(`/inmates/${inmate.id}`)} className="text-blue-600 hover:text-blue-900 mr-3"><Eye className="w-4 h-4" /></button>
                                         <button className="text-indigo-600 hover:text-indigo-900 mr-3"><Edit className="w-4 h-4" /></button>
                                     </td>
                                 </tr>
@@ -174,35 +180,79 @@ export default function Inmates() {
                         </div>
                         <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
-                                <label className="block text-sm font-medium text-gray-700">Full Name</label>
-                                <input type="text" name="name" value={formData.name} onChange={handleInputChange} required className="mt-1 block w-full rounded-md border-gray-300 shadow-sm border p-2" />
+                                <label className="block text-sm font-medium text-gray-700">Booking Number</label>
+                                <input type="text" name="bookingNumber" value={formData.bookingNumber} onChange={handleInputChange} required className="mt-1 block w-full rounded-md border-gray-300 shadow-sm border p-2" />
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-gray-700">NIC / Booking Number</label>
-                                <input type="text" name="nic" value={formData.nic} onChange={handleInputChange} required className="mt-1 block w-full rounded-md border-gray-300 shadow-sm border p-2" />
+                                <label className="block text-sm font-medium text-gray-700">First Name</label>
+                                <input type="text" name="firstName" value={formData.firstName} onChange={handleInputChange} required className="mt-1 block w-full rounded-md border-gray-300 shadow-sm border p-2" />
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-gray-700">Age</label>
-                                <input type="number" name="age" value={formData.age} onChange={handleInputChange} required className="mt-1 block w-full rounded-md border-gray-300 shadow-sm border p-2" />
+                                <label className="block text-sm font-medium text-gray-700">Last Name</label>
+                                <input type="text" name="lastName" value={formData.lastName} onChange={handleInputChange} required className="mt-1 block w-full rounded-md border-gray-300 shadow-sm border p-2" />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700">Date of Birth</label>
+                                <input type="date" name="dateOfBirth" value={formData.dateOfBirth} onChange={handleInputChange} required className="mt-1 block w-full rounded-md border-gray-300 shadow-sm border p-2" />
                             </div>
                             <div>
                                 <label className="block text-sm font-medium text-gray-700">Gender</label>
                                 <select name="gender" value={formData.gender} onChange={handleInputChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm border p-2">
-                                    <option value="Male">Male</option>
-                                    <option value="Female">Female</option>
+                                    <option value="MALE">Male</option>
+                                    <option value="FEMALE">Female</option>
                                 </select>
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-gray-700">Address</label>
-                                <input type="text" name="address" value={formData.address} onChange={handleInputChange} required className="mt-1 block w-full rounded-md border-gray-300 shadow-sm border p-2" />
+                                <label className="block text-sm font-medium text-gray-700">Case Type</label>
+                                <select name="caseType" value={formData.caseType} onChange={handleInputChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm border p-2">
+                                    <option value="MURDER">Murder</option>
+                                    <option value="MANSLAUGHTER">Manslaughter</option>
+                                    <option value="ASSAULT">Assault</option>
+                                    <option value="ROBBERY">Robbery</option>
+                                    <option value="BURGLARY">Burglary</option>
+                                    <option value="THEFT">Theft</option>
+                                    <option value="DRUG_TRAFFICKING">Drug Trafficking</option>
+                                    <option value="DRUG_POSSESSION">Drug Possession</option>
+                                    <option value="FRAUD">Fraud</option>
+                                    <option value="EMBEZZLEMENT">Embezzlement</option>
+                                    <option value="RAPE">Rape</option>
+                                    <option value="SEXUAL_ASSAULT">Sexual Assault</option>
+                                    <option value="KIDNAPPING">Kidnapping</option>
+                                    <option value="ARSON">Arson</option>
+                                    <option value="TERRORISM">Terrorism</option>
+                                    <option value="CYBERCRIME">Cybercrime</option>
+                                    <option value="DOMESTIC_VIOLENCE">Domestic Violence</option>
+                                    <option value="HUMAN_TRAFFICKING">Human Trafficking</option>
+                                    <option value="OTHER">Other</option>
+                                </select>
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-gray-700">Telephone Number</label>
-                                <input type="tel" name="tel_no" value={formData.tel_no} onChange={handleInputChange} required className="mt-1 block w-full rounded-md border-gray-300 shadow-sm border p-2" />
+                                <label className="block text-sm font-medium text-gray-700">Sentence Start</label>
+                                <input type="date" name="sentenceStartDate" value={formData.sentenceStartDate} onChange={handleInputChange} required className="mt-1 block w-full rounded-md border-gray-300 shadow-sm border p-2" />
                             </div>
-                            <div className="col-span-2">
-                                <label className="block text-sm font-medium text-gray-700">Crime Details</label>
-                                <textarea name="crime_details" value={formData.crime_details} onChange={handleInputChange} required className="mt-1 block w-full rounded-md border-gray-300 shadow-sm border p-2" rows="3"></textarea>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700">Sentence End</label>
+                                <input type="date" name="sentenceEndDate" value={formData.sentenceEndDate} onChange={handleInputChange} required className="mt-1 block w-full rounded-md border-gray-300 shadow-sm border p-2" />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700">Duration (Months)</label>
+                                <input type="number" name="sentenceDurationMonths" value={formData.sentenceDurationMonths} onChange={handleInputChange} required className="mt-1 block w-full rounded-md border-gray-300 shadow-sm border p-2" />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700">Admission Date</label>
+                                <input type="date" name="admissionDate" value={formData.admissionDate} onChange={handleInputChange} required className="mt-1 block w-full rounded-md border-gray-300 shadow-sm border p-2" />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700">Current Facility</label>
+                                <input type="text" name="currentFacility" value={formData.currentFacility} onChange={handleInputChange} required className="mt-1 block w-full rounded-md border-gray-300 shadow-sm border p-2" />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700">Security Level</label>
+                                <select name="securityLevel" value={formData.securityLevel} onChange={handleInputChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm border p-2">
+                                    <option value="MINIMUM">Minimum</option>
+                                    <option value="MEDIUM">Medium</option>
+                                    <option value="MAXIMUM">Maximum</option>
+                                </select>
                             </div>
                             
                             <div className="col-span-2 mt-4 flex justify-end gap-3">

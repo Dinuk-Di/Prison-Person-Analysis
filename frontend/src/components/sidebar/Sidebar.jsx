@@ -1,4 +1,5 @@
 import { NavLink } from "react-router-dom";
+import { useState } from "react";
 import logo from "../../assets/logo.jpeg";
 import {
   LayoutDashboard,
@@ -19,12 +20,11 @@ import {
   Castle,
   Grid3x3,
   ShieldAlert,
-  ChevronDown,
+  Home,
+  FolderOpen,
   History,
-  FolderOpen
+  ChevronDown,
 } from "lucide-react";
-
-import React, { useState } from "react";
 
 const sidebarItems = [
   {
@@ -45,7 +45,21 @@ const sidebarItems = [
         path: "/rehabilitation",
         icon: Calendar,
       },
-    ]
+      {
+        name: "Home Leave",
+        path: "/home-leave",
+        icon: Home,
+      },
+      {
+        name: "Wellness Monitoring",
+        icon: CameraIcon,
+        subItems: [
+          { name: "Survey", path: "/survey", icon: CameraIcon },
+          { name: "Inmates History", path: "/survey/history", icon: History },
+          { name: "Common Docs", path: "/survey/common-docs", icon: FolderOpen },
+        ]
+      },
+    ],
   },
   {
     section: "MANAGEMENT",
@@ -66,13 +80,14 @@ const sidebarItems = [
         icon: UserPlus,
       },
       {
-        name: "Security & Monitoring",
+        name: "Camera Management",
+        path: "/camera/management",
         icon: CameraIcon,
-        subItems: [
-          { name: "Survey", path: "/survey", icon: CameraIcon },
-          { name: "Inmates History", path: "/survey/history", icon: History },
-          { name: "Common Docs", path: "/survey/common-docs", icon: FolderOpen },
-        ]
+      },
+      {
+        name: "CCTV Dashboard",
+        path: "/camera/cctv",
+        icon: Grid3x3,
       },
 
       {
@@ -80,7 +95,7 @@ const sidebarItems = [
         path: "/violations",
         icon: ShieldAlert,
       },
-    ]
+    ],
   },
   {
     section: "OPERATIONS",
@@ -100,7 +115,7 @@ const sidebarItems = [
         path: "/analytics",
         icon: BarChart3,
       },
-    ]
+    ],
   },
 ];
 
@@ -282,3 +297,4 @@ export default function Sidebar({ isOpen, onClose, isMobile, currentUser }) {
     </>
   );
 }
+

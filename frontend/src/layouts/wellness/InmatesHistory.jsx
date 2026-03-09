@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Users, Search, History, ChevronRight, Activity, FileText, BarChart3, Clock } from 'lucide-react';
-import axiosInstance from '../../services/axiosInstance';
+import createApiClient from '../../services/axiosInstance';
 import toast from 'react-hot-toast';
 import Button from '../../components/button/Button';
 
@@ -9,7 +9,9 @@ export default function Inmates() {
   const [loading, setLoading] = useState(true);
   const [selectedInmateId, setSelectedInmateId] = useState(null);
   const [historyData, setHistoryData] = useState(null);
-  const [historyLoading, setHistoryLoading] = useState(false);
+    const [historyLoading, setHistoryLoading] = useState(false);
+    const axiosInstance = createApiClient();
+
 
   useEffect(() => {
     fetchInmates();
@@ -20,6 +22,7 @@ export default function Inmates() {
       const res = await axiosInstance.get('http://127.0.0.1:5010/api/history/inmates');
       setInmates(res.data.inmates);
     } catch (err) {
+        console.error('Error fetching inmates:', err);
       toast.error('Failed to load inmates mapping.');
     } finally {
       setLoading(false);
@@ -33,6 +36,7 @@ export default function Inmates() {
       const res = await axiosInstance.get(`http://127.0.0.1:5010/api/history/inmate/${id}`);
       setHistoryData(res.data);
     } catch (err) {
+      console.error('Error fetching inmate history:', err);
       toast.error('Failed to load inmate history.');
       setSelectedInmateId(null);
     } finally {

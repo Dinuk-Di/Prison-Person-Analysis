@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { FolderOpen, Upload, FileText, Activity, RefreshCw } from 'lucide-react';
-import axiosInstance from '../../services/axiosInstance';
+import createApiClient from '../../services/axiosInstance';
 import toast from 'react-hot-toast';
 import Button from '../../components/button/Button';
 
@@ -8,6 +8,8 @@ export default function CommonDocs() {
   const [docs, setDocs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
+  const axiosInstance = createApiClient();
+
 
   useEffect(() => {
     fetchDocs();
@@ -19,6 +21,7 @@ export default function CommonDocs() {
       const res = await axiosInstance.get('http://127.0.0.1:5010/api/admin/common_docs');
       setDocs(res.data.docs || []);
     } catch (err) {
+      console.error('Error fetching common documents:', err);
       toast.error('Failed to load common documents.');
     } finally {
       setLoading(false);
@@ -42,6 +45,7 @@ export default function CommonDocs() {
       toast.success('Documents uploaded and processed successfully!');
       fetchDocs();
     } catch (err) {
+      console.error('Error uploading documents:', err);
       toast.error('Failed to upload documents.');
     } finally {
       setUploading(false);

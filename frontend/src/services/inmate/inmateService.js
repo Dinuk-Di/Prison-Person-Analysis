@@ -1,13 +1,12 @@
-import { createApiClient } from "../axiosInstance.js";
+import createApiClient from "../axiosInstance.js";
 
-// Fallback to the Python API address if VITE_INMATE_SERVICE_URL is missing
-const baseURL = import.meta.env.VITE_INMATE_SERVICE_URL || "http://127.0.0.1:5010";
+const baseURL = import.meta.env.VITE_INMATE_SERVICE_URL;
 
 const apiClient = createApiClient(baseURL);
 
 const InmateService = {
     getAllInmates: async () => {
-        const response = await apiClient.get("/api/inmate/all");
+        const response = await apiClient.get("/inmates");
         return response.data;
     },
 
@@ -17,7 +16,7 @@ const InmateService = {
     },
 
     createInmate: async (inmateData) => {
-        const response = await apiClient.post("/api/inmate/register", inmateData);
+        const response = await apiClient.post("/inmates", inmateData);
         return response.data;
     },
 
